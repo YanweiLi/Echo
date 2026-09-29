@@ -12,15 +12,22 @@ Echo/
 │   ├── player.py                   主程序
 │   ├── template.html               单篇播放器模板
 │   ├── playlist_template.html      播放列表模板
+│   ├── dictionary.json             内置词典（511 词：中文 / 音标 / 难度）
 │   └── macos/                      macOS 原生外壳（Swift + WKWebView）
-├── tools/
-│   └── make_icon.swift         应用图标生成器
+├── tools/                      ← 🛠 转换与校验工具
+│   ├── epub2md.py                  EPUB → 中间 md（含整期可打印 HTML）
+│   ├── verify_md.py                md ↔ EPUB 逐句回查校验
+│   ├── extract_dict.py             从历史脚本抽取内置词典
+│   └── make_icon.swift             应用图标生成器
 ├── launch.command              ← ⭐ 双击启动（网页版）
 ├── build-app.command           ← ⭐ 编译 macOS App
 ├── choose-folder.command       ← 更换搜索路径
 ├── requirements.txt
 ├── Echo.app                    ← 🖥 编译出的 App（不入库）
-├── dist/                       ← 🎵 产物（音频 + 生成的页面，不入库）
+├── dist/                       ← 🎵 产物（不入库）
+│   ├── md/<期号>/*.md              资料库（Echo 输入 + 可打印）
+│   ├── print/<期号>.html           整期合并的可打印 HTML
+│   └── <文章>/sent_XXXX.mp3        逐句音频
 ├── data/                       ← 🔒 个人数据（config / vocab / progress，不入库）
 ├── .venv/                      ← 运行环境（不入库）
 └── README.md / LICENSE / .gitignore
@@ -82,6 +89,82 @@ python src/player.py                                 # 不带参数：用记录�
 ```bash
 python src/player.py --dir "/Volumes/EAGET忆捷/英语学习/Economist/2026" --serve --open
 ```
+
+## 数据源：EPUB → 中间 md（推荐） 📚
+
+原始资料是《经济学人》的 **EPUB**（比 PDF 干净得多：无 OCR 连字、无断词粘连、段落完整）。
+`tools/epub2md.py` 把 EPUB 转成**沿用本项目格式**的 md —— 这份 md **一物两用**：
+
+```
+EPUB ──[tools/epub2md.py]──> dist/md/<期号>/*.md ──┬──> Echo 播放（--dir，零代码改动）
+                                                  └──> dist/print/<期号>.html（打印资料）
+```
+
+### 转换命令
+
+```bash
+# 1) 只统计结构（不写文件），用来确认解析规则
+.venv/bin/python tools/epub2md.py "…/te_2026.01.03/TheEconomist.2026.01.03.epub" --probe
+
+# 2) 转换一期（同时出整期打印版）
+.venv/bin/python tools/epub2md.py "…/01_economist/te_2026.01.03" --print
+
+# 3) 批量转换整个库（子目录按期号自动识别；已存在的跳过）
+.venv/bin/python tools/epub2md.py "/Volumes/…/awesome-english-ebooks-master/01_economist" --print
+
+# 4) 校验：md 里每个句子都能在源 EPUB 中找到
+.venv/bin/python tools/verify_md.py "…/TheEconomist.2026.01.03.epub"
+```
+
+| 参数 | 说明 |
+| ---- | ---- |
+| `--probe` | 只统计章节 / 篇数 / 句数 / 栏目分布，不写文件 |
+| `--out` | 输出根目录（默认 `dist/md`） |
+| `--print` | 另出整期合并的可打印 HTML → `dist/print/<期号>.html` |
+| `--limit N` | 只处理前 N 期 |
+| `--force` | 覆盖已存在的 md |
+
+### 解析规则（要点）
+
+- **栏目**取自 `<span class="te_section_title">`，**标题**取自 `<h1 class="te_article_title">`，
+  副标题取 `te_article_rubric`，日期取 `te_article_datePublished`
+- 自动剔除：封面 / 目录 / 广告页 / 纯图片页 / 「This article was downloaded by …」水印段 /
+  「For subscribers only …」推销段 / 文末 ■ 装饰符
+- 命名 `<NNN>_<栏目>_-_<标题>.md` —— 刻意匹配 Echo 的侧栏标签规则，**播放器零改动**
+- 断句直接复用 `player.py` 的 `split_sentences()`（含缩写表），与老数据保持一致
+
+实测（77 期 / 5682 篇）：**逐句回查 0 丢句**，正文覆盖率 ~97%
+（差额正是被剔除的水印 / 推销 / 元数据段），连字残留与断词粘连均为 0。
+
+### md 格式契约（Echo 依赖，勿改）
+
+1. 一句一个块：`<div class="container">` 内含 `.original`（原文，生词包 `<span style="color:red">`）
+   + `.vocab`（`词 /ipa/ 释义<br>`）
+2. `## 词汇速查表` 必须是 **4 列表格** `| 单词 | 音标 | 释义 | 示例 |`
+   （`extract_vocab()` 要求 `len(cells) >= 4`，3 列会读不出侧栏生词）
+3. 难度分组 `### ⭐ / ⭐⭐ / ⭐⭐⭐`（Echo 忽略，打印时有用）
+4. 不加 YAML front-matter，不生成「中文翻译」章节
+
+## 多期浏览（期号 → 文章） 🗓
+
+`--dir` 指向的目录**本身没有 md、但有 md 子目录**时，按子目录分期：
+
+```bash
+.venv/bin/python src/player.py --dir dist/md --serve --open
+```
+
+- 启动**只读目录索引**（77 期 / 5682 篇也秒开），正文与音频**按需解析**
+- 顶栏出现**期号下拉**；切换时 `GET /issue/<期号>` 拉那一期的文章，并自动预热该期音频
+- 音频编号全局唯一（`/audio/<全局篇号>/<句号>.mp3`），换期不会错乱
+- 老数据（目录里直接放 md）仍按**单期**处理，行为与以前完全一致
+
+## 打印学习资料 🖨
+
+`--print` 会为每期生成一份自包含 HTML（`dist/print/<期号>.html`）：
+目录 + 每篇强制分页 + 原文与生词双栏 + 词汇速查表。
+
+- 浏览器打开 → `⌘P` → 选 A4、双面，即可当纸质资料
+- 单篇也可以直接打印对应的 md（VS Code 预览 / Typora 等）
 
 ## 功能
 
@@ -168,16 +251,36 @@ python src/player.py --dir "/Volumes/EAGET忆捷/英语学习/Economist/2026" --
   - 服务模式 → `data/vocab.json`（也可手动编辑/备份）
   - 静态模式 → 浏览器 `localStorage`
 
+## 设置页 ⚙️
+
+顶栏 **「⚙️」** 打开，可查看与修改：
+
+| 项目 | 可否修改 | 说明 |
+| ---- | ---- | ---- |
+| **搜索路径** | ✅ 添加 / 移除 | 扫描 md 的目录；第一个为默认。新增后**重启 Echo** 才会重新扫描 |
+| **数据目录** | ✅ 更改 / 恢复默认 | config / 生词本 / 学习进度 的存放位置，**改完立即生效** |
+| 生词本文件 | 查看 | 完整路径，右侧 📂 可在 Finder 中显示 |
+| 学习进度文件 | 查看 | 同上 |
+| 产物目录 | 查看 | 音频与生成的页面所在处 |
+| **📚 资料库** | ✅ 一键设为搜索路径 | EPUB 转出的 `dist/md`（按期号组织）与 `dist/print`（打印版） |
+| 项目根目录 | 查看 | Echo 定位到的项目位置 |
+
+- 数据目录的「指针」存在固定位置 `~/Library/Application Support/Echo/settings.json`，
+  所以即使把数据目录改到移动硬盘，Echo 下次仍能找到。
+- 设置页只在**服务模式**（`launch.command` / `Echo.app`）下可用；静态打开的 html 会自动隐藏该按钮。
+
 ## 产物目录（dist/）
 
 ```
 dist/
 ├── playlist.html             ← 播放列表（多篇入口）
+├── md/<期号>/                 ← EPUB 转出的资料库（Echo 数据源 + 可打印）
+│   └── 008_Leaders_-_Title.md
+├── print/<期号>.html          ← 整期合并的可打印 HTML
 ├── The_Economist_..._Britain_1/
 │   ├── player.html           ← 单篇播放器
 │   └── sent_0000.mp3 …       ← 逐句音频
-└── The_Economist_..._Britain_2/
-    └── …
+└── …
 ```
 
 ## 数据目录（data/）
@@ -191,6 +294,9 @@ data/
 
 ## 说明
 
-- md 文档中的 OCR 连字（如 `ﬁ`、`ﬂ`）会被自动规范化为 `fi`、`fl`；个别因 OCR 混排导致的乱码句子会按原文朗读，建议播放前先检查原文。
+- **推荐数据源**是 EPUB 转出的 md（`dist/md`）；PDF 转出的老 md 仍可直接播放，两种格式并存无冲突。
+- 内置词典 `src/dictionary.json`（511 词：中文 / 音标 / 难度）用于原文生词红标与词汇速查表；
+  由 `tools/extract_dict.py` 从历史脚本抽取，源脚本只读。
+- md 文档中的 OCR 连字（如 `ﬁ`、`ﬂ`）会被自动规范化为 `fi`、`fl`；EPUB 转换的 md 不会出现该问题。
 - 音质与音量取决于 edge-tts 服务；离线时可用系统 `say` 命令作为替代（本项目默认使用 edge-tts）。
 - 查词与中文翻译使用免费的 Datamuse + MyMemory 接口，机器翻译偶尔不够精准，可交叉参考侧栏生词表（来自文档）。

@@ -5,7 +5,7 @@
 import Cocoa
 import WebKit
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate {
     private var window: NSWindow!
     private var webView: WKWebView!
     private var server: Process?
@@ -40,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         webView = WKWebView(frame: .zero, configuration: config)
         webView.autoresizingMask = [.width, .height]
+        webView.uiDelegate = self
 
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1120, height: 820),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -72,6 +73,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showError(_ text: String) {
         showMessage(title: "⚠️", detail: text)
+    }
+
+    // MARK: - JS 对话框（alert / confirm / prompt）
+
+    func webView(_ webView: WKWebView,
+                 runJavaScriptAlertPanelWithMessage message: String,
+                 initiatedByFrame frame: WKFrameInfo,
+                 completionHandler: @escaping () -> Void) {
+        let alert = NSAlert()
+        alert.messageText = "Echo"
+        alert.informativeText = message
+        alert.addButton(withTitle: "好")
+        alert.runModal()
+        completionHandler()
+    }
+
+    func webView(_ webView: WKWebView,
+                 runJavaScriptConfirmPanelWithMessage message: String,
+                 initiatedByFrame frame: WKFrameInfo,
+                 completionHandler: @escaping (Bool) -> Void) {
+        let alert = NSAlert()
+        alert.messageText = "Echo"
+        alert.informativeText = message
+        alert.addButton(withTitle: "确定")
+        alert.addButton(withTitle: "取消")
+        completionHandler(alert.runModal() == .alertFirstButtonReturn)
+    }
+
+    func webView(_ webView: WKWebView,
+                 runJavaScriptTextInputPanelWithPrompt prompt: String,
+                 defaultText: String?,
+                 initiatedByFrame frame: WKFrameInfo,
+                 completionHandler: @escaping (String?) -> Void) {
+        let alert = NSAlert()
+        alert.messageText = "Echo"
+        alert.informativeText = prompt
+        alert.addButton(withTitle: "确定")
+        alert.addButton(withTitle: "取消")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 460, height: 24))
+        field.stringValue = defaultText ?? ""
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        completionHandler(alert.runModal() == .alertFirstButtonReturn ? field.stringValue : nil)
     }
 
     // MARK: - 菜单

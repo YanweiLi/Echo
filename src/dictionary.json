@@ -1,0 +1,2557 @@
+{
+  "able": {
+    "ipa": "/ˈeɪbl/",
+    "level": 1,
+    "zh": "能够"
+  },
+  "about": {
+    "ipa": "/əˈbaʊt/",
+    "level": 1,
+    "zh": "大约"
+  },
+  "above": {
+    "ipa": "/əˈbʌv/",
+    "level": 1,
+    "zh": "在...上面"
+  },
+  "according": {
+    "ipa": "/əˈkɔːdɪŋ/",
+    "level": 1,
+    "zh": "根据"
+  },
+  "acquisition": {
+    "ipa": "/ˌækwɪˈzɪʃn/",
+    "level": 2,
+    "zh": "收购"
+  },
+  "across": {
+    "ipa": "/əˈkrɒs/",
+    "level": 1,
+    "zh": "穿过"
+  },
+  "actual": {
+    "ipa": "/ˈæktʃuəl/",
+    "level": 2,
+    "zh": "实际的"
+  },
+  "additional": {
+    "ipa": "/əˈdɪʃənl/",
+    "level": 2,
+    "zh": "额外的"
+  },
+  "administration": {
+    "ipa": "/ədˌmɪnɪˈstreɪʃn/",
+    "level": 1,
+    "zh": "管理"
+  },
+  "advantage": {
+    "ipa": "/ədˈvɑːntɪdʒ/",
+    "level": 1,
+    "zh": "优势"
+  },
+  "after": {
+    "ipa": "/ˈɑːftə(r)/",
+    "level": 1,
+    "zh": "之后"
+  },
+  "against": {
+    "ipa": "/əˈɡenst/",
+    "level": 1,
+    "zh": "反对"
+  },
+  "agriculture": {
+    "ipa": "/æɡrɪkʌltʃə(r)/",
+    "level": 1,
+    "zh": "农业"
+  },
+  "airstrike": {
+    "ipa": "/eəstraɪk/",
+    "level": 2,
+    "zh": "空袭"
+  },
+  "algorithm": {
+    "ipa": "/ælɡərɪðəm/",
+    "level": 3,
+    "zh": "算法"
+  },
+  "alliance": {
+    "ipa": "/əˈlaɪəns/",
+    "level": 2,
+    "zh": "联盟"
+  },
+  "almost": {
+    "ipa": "/ˈɔːlməʊst/",
+    "level": 1,
+    "zh": "几乎"
+  },
+  "already": {
+    "ipa": "/ɔːlˈredi/",
+    "level": 1,
+    "zh": "已经"
+  },
+  "although": {
+    "ipa": "/ɔːlˈðəʊ/",
+    "level": 1,
+    "zh": "虽然"
+  },
+  "ambassador": {
+    "ipa": "/æmˈbæsədə(r)/",
+    "level": 1,
+    "zh": "大使"
+  },
+  "america": {
+    "ipa": "/əˈmerɪkə/",
+    "level": 1,
+    "zh": "美国"
+  },
+  "american": {
+    "ipa": "/əˈmerɪkən/",
+    "level": 1,
+    "zh": "美国的"
+  },
+  "ammunition": {
+    "ipa": "/ˌæmjʊˈnɪʃn/",
+    "level": 2,
+    "zh": "弹药"
+  },
+  "among": {
+    "ipa": "/əˈmʌŋ/",
+    "level": 1,
+    "zh": "之中"
+  },
+  "another": {
+    "ipa": "/əˈnʌðə(r)/",
+    "level": 1,
+    "zh": "另一个"
+  },
+  "answer": {
+    "ipa": "/ˈɑːnsə(r)/",
+    "level": 1,
+    "zh": "答案"
+  },
+  "antitrust": {
+    "ipa": "/ˌæntiˈtrʌst/",
+    "level": 3,
+    "zh": "反垄断"
+  },
+  "anything": {
+    "ipa": "/ˈeniθɪŋ/",
+    "level": 1,
+    "zh": "任何事"
+  },
+  "appear": {
+    "ipa": "/əˈpɪə(r)/",
+    "level": 1,
+    "zh": "出现"
+  },
+  "arbitrary": {
+    "ipa": "/ɑːbɪtrəri/",
+    "level": 3,
+    "zh": "任意的"
+  },
+  "architecture": {
+    "ipa": "/ɑːkɪtektʃə(r)/",
+    "level": 3,
+    "zh": "架构"
+  },
+  "around": {
+    "ipa": "/əˈraʊnd/",
+    "level": 1,
+    "zh": "大约"
+  },
+  "asset": {
+    "ipa": "/æset/",
+    "level": 1,
+    "zh": "资产"
+  },
+  "asymmetric": {
+    "ipa": "/ˌeɪsɪˈmetrɪk/",
+    "level": 3,
+    "zh": "非对称的"
+  },
+  "attack": {
+    "ipa": "/əˈtæk/",
+    "level": 1,
+    "zh": "攻击"
+  },
+  "audit": {
+    "ipa": "/ɔːdɪt/",
+    "level": 2,
+    "zh": "审计"
+  },
+  "austerity": {
+    "ipa": "/ɒˈsterəti/",
+    "level": 3,
+    "zh": "紧缩"
+  },
+  "authentication": {
+    "ipa": "/ɔːˌθentɪˈkeɪʃn/",
+    "level": 3,
+    "zh": "认证"
+  },
+  "available": {
+    "ipa": "/əˈveɪləbl/",
+    "level": 1,
+    "zh": "可用的"
+  },
+  "away": {
+    "ipa": "/əˈweɪ/",
+    "level": 1,
+    "zh": "离开"
+  },
+  "back": {
+    "ipa": "/bæk/",
+    "level": 1,
+    "zh": "后面"
+  },
+  "bad": {
+    "ipa": "/bæd/",
+    "level": 1,
+    "zh": "坏的"
+  },
+  "bail-out": {
+    "ipa": "/beɪl aʊt/",
+    "level": 2,
+    "zh": "救助"
+  },
+  "bandwidth": {
+    "ipa": "/bændwɪdθ/",
+    "level": 2,
+    "zh": "带宽"
+  },
+  "bankruptcy": {
+    "ipa": "/bæŋkrəptsi/",
+    "level": 2,
+    "zh": "破产"
+  },
+  "basic": {
+    "ipa": "/ˈbeɪsɪk/",
+    "level": 1,
+    "zh": "基本的"
+  },
+  "because": {
+    "ipa": "/bɪˈkɒz/",
+    "level": 1,
+    "zh": "因为"
+  },
+  "become": {
+    "ipa": "/bɪˈkʌm/",
+    "level": 1,
+    "zh": "成为"
+  },
+  "before": {
+    "ipa": "/bɪˈfɔː(r)/",
+    "level": 1,
+    "zh": "之前"
+  },
+  "begin": {
+    "ipa": "/bɪˈɡɪn/",
+    "level": 1,
+    "zh": "开始"
+  },
+  "believe": {
+    "ipa": "/bɪˈliːv/",
+    "level": 1,
+    "zh": "相信"
+  },
+  "below": {
+    "ipa": "/bɪˈləʊ/",
+    "level": 1,
+    "zh": "在...下面"
+  },
+  "benchmark": {
+    "ipa": "/bentʃmɑːk/",
+    "level": 3,
+    "zh": "基准"
+  },
+  "best": {
+    "ipa": "/best/",
+    "level": 1,
+    "zh": "最好的"
+  },
+  "better": {
+    "ipa": "/ˈbetə(r)/",
+    "level": 1,
+    "zh": "更好的"
+  },
+  "between": {
+    "ipa": "/bɪˈtwiːn/",
+    "level": 1,
+    "zh": "之间"
+  },
+  "beyond": {
+    "ipa": "/bɪˈjɒnd/",
+    "level": 1,
+    "zh": "超越"
+  },
+  "big": {
+    "ipa": "/bɪɡ/",
+    "level": 1,
+    "zh": "大的"
+  },
+  "blackout": {
+    "ipa": "/blækaʊt/",
+    "level": 2,
+    "zh": "断网"
+  },
+  "blockade": {
+    "ipa": "/blɒˈkeɪd/",
+    "level": 2,
+    "zh": "封锁"
+  },
+  "bonds": {
+    "ipa": "/bɒndz/",
+    "level": 1,
+    "zh": "债券"
+  },
+  "both": {
+    "ipa": "/bəʊθ/",
+    "level": 1,
+    "zh": "两者"
+  },
+  "breach": {
+    "ipa": "/briːtʃ/",
+    "level": 2,
+    "zh": "违反"
+  },
+  "bring": {
+    "ipa": "/brɪŋ/",
+    "level": 1,
+    "zh": "带来"
+  },
+  "britain": {
+    "ipa": "/ˈbrɪtən/",
+    "level": 1,
+    "zh": "英国"
+  },
+  "british": {
+    "ipa": "/ˈbrɪtɪʃ/",
+    "level": 1,
+    "zh": "英国的"
+  },
+  "budget": {
+    "ipa": "/bʌdʒɪt/",
+    "level": 1,
+    "zh": "预算"
+  },
+  "build": {
+    "ipa": "/bɪld/",
+    "level": 1,
+    "zh": "建造"
+  },
+  "buy": {
+    "ipa": "/baɪ/",
+    "level": 1,
+    "zh": "买"
+  },
+  "cache": {
+    "ipa": "/kæʃ/",
+    "level": 2,
+    "zh": "缓存"
+  },
+  "cartel": {
+    "ipa": "/kɑːˈtel/",
+    "level": 3,
+    "zh": "卡特尔"
+  },
+  "case": {
+    "ipa": "/keɪs/",
+    "level": 1,
+    "zh": "情况"
+  },
+  "casualties": {
+    "ipa": "/kæʒuəltiz/",
+    "level": 2,
+    "zh": "伤亡"
+  },
+  "cause": {
+    "ipa": "/kɔːz/",
+    "level": 1,
+    "zh": "原因"
+  },
+  "ceasefire": {
+    "ipa": "/siːsfaɪə(r)/",
+    "level": 2,
+    "zh": "停火"
+  },
+  "certain": {
+    "ipa": "/ˈsɜːtn/",
+    "level": 1,
+    "zh": "确定的"
+  },
+  "certainly": {
+    "ipa": "/ˈsɜːtənli/",
+    "level": 1,
+    "zh": "当然"
+  },
+  "change": {
+    "ipa": "/tʃeɪndʒ/",
+    "level": 1,
+    "zh": "改变"
+  },
+  "child": {
+    "ipa": "/tʃaɪld/",
+    "level": 1,
+    "zh": "孩子"
+  },
+  "children": {
+    "ipa": "/ˈtʃɪldrən/",
+    "level": 1,
+    "zh": "孩子们"
+  },
+  "china": {
+    "ipa": "/ˈtʃaɪnə/",
+    "level": 1,
+    "zh": "中国"
+  },
+  "chinese": {
+    "ipa": "/tʃaɪˈniːz/",
+    "level": 1,
+    "zh": "中国的"
+  },
+  "civilians": {
+    "ipa": "/sɪˈvɪliənz/",
+    "level": 2,
+    "zh": "平民"
+  },
+  "clear": {
+    "ipa": "/klɪə(r)/",
+    "level": 1,
+    "zh": "清楚的"
+  },
+  "close": {
+    "ipa": "/kləʊz/",
+    "level": 1,
+    "zh": "关闭"
+  },
+  "cluster": {
+    "ipa": "/kʌstə(r)/",
+    "level": 2,
+    "zh": "集群"
+  },
+  "coalition": {
+    "ipa": "/kəʊəˈlɪʃn/",
+    "level": 2,
+    "zh": "联盟"
+  },
+  "collusion": {
+    "ipa": "/kəˈluːʒn/",
+    "level": 3,
+    "zh": "串通"
+  },
+  "come": {
+    "ipa": "/kʌm/",
+    "level": 1,
+    "zh": "来"
+  },
+  "common": {
+    "ipa": "/ˈkɒmən/",
+    "level": 1,
+    "zh": "常见的"
+  },
+  "compensation": {
+    "ipa": "/ˌkɒmpenˈseɪʃn/",
+    "level": 2,
+    "zh": "赔偿"
+  },
+  "compliance": {
+    "ipa": "/kəmˈplaɪəns/",
+    "level": 3,
+    "zh": "合规"
+  },
+  "concession": {
+    "ipa": "/kənˈseʃn/",
+    "level": 3,
+    "zh": "让步"
+  },
+  "conflict": {
+    "ipa": "/kɒnflɪkt/",
+    "level": 1,
+    "zh": "冲突"
+  },
+  "consider": {
+    "ipa": "/kənˈsɪdə(r)/",
+    "level": 1,
+    "zh": "考虑"
+  },
+  "continue": {
+    "ipa": "/kənˈtɪnjuː/",
+    "level": 1,
+    "zh": "继续"
+  },
+  "control": {
+    "ipa": "/kənˈtrəʊl/",
+    "level": 1,
+    "zh": "控制"
+  },
+  "conveyed": {
+    "ipa": "/kənˈveɪd/",
+    "level": 1,
+    "zh": "传达"
+  },
+  "corruption": {
+    "ipa": "/kəˈrʌpʃn/",
+    "level": 2,
+    "zh": "腐败"
+  },
+  "countries": {
+    "ipa": "/ˈkʌntriz/",
+    "level": 1,
+    "zh": "国家们"
+  },
+  "country": {
+    "ipa": "/ˈkʌntri/",
+    "level": 1,
+    "zh": "国家"
+  },
+  "crackdown": {
+    "ipa": "/krækdaʊn/",
+    "level": 2,
+    "zh": "打击"
+  },
+  "create": {
+    "ipa": "/kriˈeɪt/",
+    "level": 1,
+    "zh": "创造"
+  },
+  "current": {
+    "ipa": "/ˈkʌrənt/",
+    "level": 2,
+    "zh": "当前的"
+  },
+  "curtail": {
+    "ipa": "/kɜːˈteɪl/",
+    "level": 3,
+    "zh": "削减，限制"
+  },
+  "custody": {
+    "ipa": "/kʌstədi/",
+    "level": 2,
+    "zh": "羁押"
+  },
+  "cut": {
+    "ipa": "/kʌt/",
+    "level": 1,
+    "zh": "切"
+  },
+  "cyber": {
+    "ipa": "/saɪbə(r)/",
+    "level": 2,
+    "zh": "网络"
+  },
+  "database": {
+    "ipa": "/deɪtəbeɪs/",
+    "level": 1,
+    "zh": "数据库"
+  },
+  "day": {
+    "ipa": "/deɪ/",
+    "level": 1,
+    "zh": "天"
+  },
+  "deal": {
+    "ipa": "/diːl/",
+    "level": 1,
+    "zh": "协议"
+  },
+  "debt": {
+    "ipa": "/det/",
+    "level": 1,
+    "zh": "债务"
+  },
+  "default": {
+    "ipa": "/dɪˈfɔːlt/",
+    "level": 2,
+    "zh": "违约"
+  },
+  "defences": {
+    "ipa": "/dɪˈfensɪz/",
+    "level": 1,
+    "zh": "防御"
+  },
+  "deficit": {
+    "ipa": "/defɪsɪt/",
+    "level": 2,
+    "zh": "赤字"
+  },
+  "demonstrations": {
+    "ipa": "/ˌdemənˈstreɪʃnz/",
+    "level": 1,
+    "zh": "示威游行"
+  },
+  "derivative": {
+    "ipa": "/dɪˈrɪvətɪv/",
+    "level": 3,
+    "zh": "衍生品"
+  },
+  "despite": {
+    "ipa": "/dɪˈspaɪt/",
+    "level": 1,
+    "zh": "尽管"
+  },
+  "detained": {
+    "ipa": "/dɪˈteɪnd/",
+    "level": 2,
+    "zh": "拘留"
+  },
+  "detention": {
+    "ipa": "/dɪˈtenʃn/",
+    "level": 2,
+    "zh": "拘留"
+  },
+  "deterrence": {
+    "ipa": "/dɪˈterəns/",
+    "level": 3,
+    "zh": "威慑"
+  },
+  "die": {
+    "ipa": "/daɪ/",
+    "level": 1,
+    "zh": "死"
+  },
+  "different": {
+    "ipa": "/ˈdɪfrənt/",
+    "level": 1,
+    "zh": "不同的"
+  },
+  "difficult": {
+    "ipa": "/ˈdɪfɪkəlt/",
+    "level": 1,
+    "zh": "困难的"
+  },
+  "diplomat": {
+    "ipa": "/dɪpləmæt/",
+    "level": 2,
+    "zh": "外交官"
+  },
+  "diplomatic": {
+    "ipa": "/ˌdɪpləˈmætɪk/",
+    "level": 2,
+    "zh": "外交的"
+  },
+  "direct": {
+    "ipa": "/dəˈrekt/",
+    "level": 1,
+    "zh": "直接的"
+  },
+  "disparate": {
+    "ipa": "/dɪspərət/",
+    "level": 3,
+    "zh": "不同的"
+  },
+  "dividend": {
+    "ipa": "/dɪvɪdend/",
+    "level": 2,
+    "zh": "股息"
+  },
+  "domestic": {
+    "ipa": "/dəˈmestɪk/",
+    "level": 2,
+    "zh": "国内的"
+  },
+  "down": {
+    "ipa": "/daʊn/",
+    "level": 1,
+    "zh": "向下"
+  },
+  "drones": {
+    "ipa": "/drəʊnz/",
+    "level": 2,
+    "zh": "无人机"
+  },
+  "during": {
+    "ipa": "/ˈdjʊərɪŋ/",
+    "level": 1,
+    "zh": "在...期间"
+  },
+  "each": {
+    "ipa": "/iːtʃ/",
+    "level": 1,
+    "zh": "每个"
+  },
+  "easy": {
+    "ipa": "/ˈiːzi/",
+    "level": 1,
+    "zh": "容易的"
+  },
+  "economic": {
+    "ipa": "/ˌiːkəˈnɒmɪk/",
+    "level": 1,
+    "zh": "经济的"
+  },
+  "economy": {
+    "ipa": "/ɪˈkɒnəmi/",
+    "level": 1,
+    "zh": "经济"
+  },
+  "effect": {
+    "ipa": "/ɪˈfekt/",
+    "level": 1,
+    "zh": "效果"
+  },
+  "either": {
+    "ipa": "/ˈaɪðə(r)/",
+    "level": 2,
+    "zh": "任一"
+  },
+  "elections": {
+    "ipa": "/ɪˈlekʃnz/",
+    "level": 1,
+    "zh": "选举"
+  },
+  "embassy": {
+    "ipa": "/embəsi/",
+    "level": 1,
+    "zh": "大使馆"
+  },
+  "empty": {
+    "ipa": "/ˈempti/",
+    "level": 1,
+    "zh": "空的"
+  },
+  "endures": {
+    "ipa": "/ɪnˈdjʊəz/",
+    "level": 2,
+    "zh": "持续"
+  },
+  "enough": {
+    "ipa": "/ɪˈnʌf/",
+    "level": 1,
+    "zh": "足够的"
+  },
+  "equity": {
+    "ipa": "/ekwəti/",
+    "level": 2,
+    "zh": "股权"
+  },
+  "escalate": {
+    "ipa": "/eskəleɪt/",
+    "level": 2,
+    "zh": "升级"
+  },
+  "escalation": {
+    "ipa": "/ˌeskəˈleɪʃn/",
+    "level": 2,
+    "zh": "升级"
+  },
+  "especially": {
+    "ipa": "/ɪˈspeʃəli/",
+    "level": 1,
+    "zh": "尤其"
+  },
+  "essential": {
+    "ipa": "/ɪˈsenʃl/",
+    "level": 1,
+    "zh": "必要的"
+  },
+  "europe": {
+    "ipa": "/ˈjʊərəp/",
+    "level": 1,
+    "zh": "欧洲"
+  },
+  "european": {
+    "ipa": "/ˌjʊərəˈpiːniən/",
+    "level": 1,
+    "zh": "欧洲的"
+  },
+  "even": {
+    "ipa": "/ˈiːvn/",
+    "level": 1,
+    "zh": "甚至"
+  },
+  "eventual": {
+    "ipa": "/ɪˈventʃuəl/",
+    "level": 2,
+    "zh": "最终的"
+  },
+  "every": {
+    "ipa": "/ˈevri/",
+    "level": 1,
+    "zh": "每个"
+  },
+  "everything": {
+    "ipa": "/ˈevriθɪŋ/",
+    "level": 1,
+    "zh": "一切"
+  },
+  "exactly": {
+    "ipa": "/ɪɡˈzæktli/",
+    "level": 2,
+    "zh": "精确地"
+  },
+  "executions": {
+    "ipa": "/ˌeksɪˈkjuːʃnz/",
+    "level": 1,
+    "zh": "处决"
+  },
+  "expect": {
+    "ipa": "/ɪkˈspekt/",
+    "level": 1,
+    "zh": "期望"
+  },
+  "extremist": {
+    "ipa": "/ɪkˈstriːmɪst/",
+    "level": 2,
+    "zh": "极端分子"
+  },
+  "facilities": {
+    "ipa": "/fəˈsɪləti/",
+    "level": 1,
+    "zh": "设施"
+  },
+  "fact": {
+    "ipa": "/fækt/",
+    "level": 1,
+    "zh": "事实"
+  },
+  "faction": {
+    "ipa": "/fækʃn/",
+    "level": 3,
+    "zh": "派别"
+  },
+  "fall": {
+    "ipa": "/fɔːl/",
+    "level": 1,
+    "zh": "落下"
+  },
+  "false": {
+    "ipa": "/fɔːls/",
+    "level": 1,
+    "zh": "错误的"
+  },
+  "family": {
+    "ipa": "/ˈfæməli/",
+    "level": 1,
+    "zh": "家庭"
+  },
+  "farmers": {
+    "ipa": "/fɑːməz/",
+    "level": 1,
+    "zh": "农民"
+  },
+  "fast": {
+    "ipa": "/fɑːst/",
+    "level": 1,
+    "zh": "快的"
+  },
+  "few": {
+    "ipa": "/fjuː/",
+    "level": 1,
+    "zh": "少数"
+  },
+  "final": {
+    "ipa": "/ˈfaɪnl/",
+    "level": 1,
+    "zh": "最终的"
+  },
+  "financial": {
+    "ipa": "/faɪˈnænʃl/",
+    "level": 2,
+    "zh": "金融的"
+  },
+  "firewall": {
+    "ipa": "/faɪəwɔːl/",
+    "level": 2,
+    "zh": "防火墙"
+  },
+  "fiscal": {
+    "ipa": "/fɪskl/",
+    "level": 3,
+    "zh": "财政"
+  },
+  "follow": {
+    "ipa": "/ˈfɒləʊ/",
+    "level": 1,
+    "zh": "跟随"
+  },
+  "force": {
+    "ipa": "/fɔːs/",
+    "level": 1,
+    "zh": "力量"
+  },
+  "foreign": {
+    "ipa": "/ˈfɒrən/",
+    "level": 1,
+    "zh": "外国的"
+  },
+  "formal": {
+    "ipa": "/fɔːml/",
+    "level": 1,
+    "zh": "正式的"
+  },
+  "former": {
+    "ipa": "/ˈfɔːmə(r)/",
+    "level": 1,
+    "zh": "前"
+  },
+  "framework": {
+    "ipa": "/freɪmwɜːk/",
+    "level": 2,
+    "zh": "框架"
+  },
+  "fraud": {
+    "ipa": "/frɔːd/",
+    "level": 2,
+    "zh": "欺诈"
+  },
+  "free": {
+    "ipa": "/friː/",
+    "level": 1,
+    "zh": "自由的"
+  },
+  "full": {
+    "ipa": "/fʊl/",
+    "level": 1,
+    "zh": "满的"
+  },
+  "further": {
+    "ipa": "/ˈfɜːðə(r)/",
+    "level": 1,
+    "zh": "进一步"
+  },
+  "gateway": {
+    "ipa": "/ɡeɪtweɪ/",
+    "level": 2,
+    "zh": "网关"
+  },
+  "general": {
+    "ipa": "/ˈdʒenrəl/",
+    "level": 1,
+    "zh": "一般的"
+  },
+  "get": {
+    "ipa": "/ɡet/",
+    "level": 1,
+    "zh": "得到"
+  },
+  "give": {
+    "ipa": "/ɡɪv/",
+    "level": 1,
+    "zh": "给"
+  },
+  "global": {
+    "ipa": "/ˈɡləʊbl/",
+    "level": 1,
+    "zh": "全球的"
+  },
+  "go": {
+    "ipa": "/ɡəʊ/",
+    "level": 1,
+    "zh": "去"
+  },
+  "good": {
+    "ipa": "/ɡʊd/",
+    "level": 1,
+    "zh": "好的"
+  },
+  "government": {
+    "ipa": "/ˈɡʌvənmənt/",
+    "level": 1,
+    "zh": "政府"
+  },
+  "greatest": {
+    "ipa": "/ˈɡreɪtɪst/",
+    "level": 1,
+    "zh": "最伟大的"
+  },
+  "grow": {
+    "ipa": "/ɡrəʊ/",
+    "level": 1,
+    "zh": "成长"
+  },
+  "gulf": {
+    "ipa": "/ɡʌlf/",
+    "level": 1,
+    "zh": "海湾"
+  },
+  "happen": {
+    "ipa": "/ˈhæpən/",
+    "level": 1,
+    "zh": "发生"
+  },
+  "happy": {
+    "ipa": "/ˈhæpi/",
+    "level": 1,
+    "zh": "快乐的"
+  },
+  "hard": {
+    "ipa": "/hɑːd/",
+    "level": 1,
+    "zh": "硬的"
+  },
+  "hardliner": {
+    "ipa": "/hɑːdlaɪnə(r)/",
+    "level": 3,
+    "zh": "强硬派"
+  },
+  "hear": {
+    "ipa": "/hɪə(r)/",
+    "level": 1,
+    "zh": "听见"
+  },
+  "hedge": {
+    "ipa": "/hedʒ/",
+    "level": 2,
+    "zh": "对冲"
+  },
+  "help": {
+    "ipa": "/help/",
+    "level": 1,
+    "zh": "帮助"
+  },
+  "here": {
+    "ipa": "/hɪə(r)/",
+    "level": 1,
+    "zh": "这里"
+  },
+  "high": {
+    "ipa": "/haɪ/",
+    "level": 1,
+    "zh": "高的"
+  },
+  "highest": {
+    "ipa": "/ˈhaɪɪst/",
+    "level": 1,
+    "zh": "最高的"
+  },
+  "hold": {
+    "ipa": "/həʊld/",
+    "level": 1,
+    "zh": "持有"
+  },
+  "hormuz": {
+    "ipa": "/hɔːrˈmuːz/",
+    "level": 1,
+    "zh": "霍尔木兹"
+  },
+  "however": {
+    "ipa": "/haʊˈevə(r)/",
+    "level": 1,
+    "zh": "然而"
+  },
+  "immediate": {
+    "ipa": "/ɪˈmiːdiət/",
+    "level": 2,
+    "zh": "立即的"
+  },
+  "immigrants": {
+    "ipa": "/ɪmɪɡrənts/",
+    "level": 2,
+    "zh": "移民"
+  },
+  "imminent": {
+    "ipa": "/ɪmɪnənt/",
+    "level": 3,
+    "zh": "迫近的"
+  },
+  "important": {
+    "ipa": "/ɪmˈpɔːtənt/",
+    "level": 1,
+    "zh": "重要的"
+  },
+  "impossible": {
+    "ipa": "/ɪmˈpɒsəbl/",
+    "level": 1,
+    "zh": "不可能的"
+  },
+  "impunity": {
+    "ipa": "/ɪmˈpjuːnəti/",
+    "level": 3,
+    "zh": "免于惩罚"
+  },
+  "include": {
+    "ipa": "/ɪnˈkluːd/",
+    "level": 1,
+    "zh": "包括"
+  },
+  "including": {
+    "ipa": "/ɪnˈkluːdɪŋ/",
+    "level": 1,
+    "zh": "包括"
+  },
+  "indictment": {
+    "ipa": "/ɪnˈdaɪtmənt/",
+    "level": 3,
+    "zh": "起诉"
+  },
+  "inflation": {
+    "ipa": "/ɪnˈfleɪʃn/",
+    "level": 2,
+    "zh": "通货膨胀"
+  },
+  "informal": {
+    "ipa": "/ɪnˈfɔːml/",
+    "level": 1,
+    "zh": "非正式的"
+  },
+  "infrastructure": {
+    "ipa": "/ˈɪnfrəstrʌktʃə(r)/",
+    "level": 2,
+    "zh": "基础设施"
+  },
+  "initial": {
+    "ipa": "/ɪˈnɪʃl/",
+    "level": 2,
+    "zh": "最初的"
+  },
+  "instead": {
+    "ipa": "/ɪnˈsted/",
+    "level": 1,
+    "zh": "代替"
+  },
+  "insurgency": {
+    "ipa": "/ɪnˈsɜːdʒənsi/",
+    "level": 3,
+    "zh": "叛乱"
+  },
+  "international": {
+    "ipa": "/ˌɪntəˈnæʃnəl/",
+    "level": 1,
+    "zh": "国际的"
+  },
+  "internet": {
+    "ipa": "/ɪntənet/",
+    "level": 1,
+    "zh": "互联网"
+  },
+  "interventions": {
+    "ipa": "/ˌɪntəˈvenʃnz/",
+    "level": 2,
+    "zh": "干预"
+  },
+  "investor": {
+    "ipa": "/ɪnˈvestə(r)/",
+    "level": 1,
+    "zh": "投资者"
+  },
+  "iran": {
+    "ipa": "/ɪˈrɑːn/",
+    "level": 1,
+    "zh": "伊朗"
+  },
+  "iranian": {
+    "ipa": "/ɪˈreɪniən/",
+    "level": 1,
+    "zh": "伊朗的"
+  },
+  "israel": {
+    "ipa": "/ˈɪzreɪl/",
+    "level": 1,
+    "zh": "以色列"
+  },
+  "israeli": {
+    "ipa": "/ɪzˈreɪli/",
+    "level": 1,
+    "zh": "以色列的"
+  },
+  "issue": {
+    "ipa": "/ˈɪʃuː/",
+    "level": 1,
+    "zh": "问题"
+  },
+  "itself": {
+    "ipa": "/ɪtˈself/",
+    "level": 1,
+    "zh": "自己"
+  },
+  "keep": {
+    "ipa": "/kiːp/",
+    "level": 1,
+    "zh": "保持"
+  },
+  "kernel": {
+    "ipa": "/kɜːnl/",
+    "level": 3,
+    "zh": "内核"
+  },
+  "kill": {
+    "ipa": "/kɪl/",
+    "level": 1,
+    "zh": "杀"
+  },
+  "know": {
+    "ipa": "/nəʊ/",
+    "level": 1,
+    "zh": "知道"
+  },
+  "largest": {
+    "ipa": "/ˈlɑːdʒɪst/",
+    "level": 1,
+    "zh": "最大的"
+  },
+  "latter": {
+    "ipa": "/ˈlætə(r)/",
+    "level": 2,
+    "zh": "后者"
+  },
+  "lead": {
+    "ipa": "/liːd/",
+    "level": 1,
+    "zh": "领导"
+  },
+  "leader": {
+    "ipa": "/ˈliːdə(r)/",
+    "level": 1,
+    "zh": "领导"
+  },
+  "leaders": {
+    "ipa": "/ˈliːdəz/",
+    "level": 1,
+    "zh": "领导人"
+  },
+  "learn": {
+    "ipa": "/lɜːn/",
+    "level": 1,
+    "zh": "学习"
+  },
+  "least": {
+    "ipa": "/liːst/",
+    "level": 1,
+    "zh": "最少的"
+  },
+  "leave": {
+    "ipa": "/liːv/",
+    "level": 1,
+    "zh": "离开"
+  },
+  "lebanon": {
+    "ipa": "/ˈlebənɒn/",
+    "level": 1,
+    "zh": "黎巴嫩"
+  },
+  "legislation": {
+    "ipa": "/ˌledʒɪsˈleɪʃn/",
+    "level": 3,
+    "zh": "立法"
+  },
+  "legitimacy": {
+    "ipa": "/lɪˈdʒɪtɪməsi/",
+    "level": 3,
+    "zh": "合法性"
+  },
+  "less": {
+    "ipa": "/les/",
+    "level": 1,
+    "zh": "更少"
+  },
+  "let": {
+    "ipa": "/let/",
+    "level": 1,
+    "zh": "让"
+  },
+  "leverage": {
+    "ipa": "/levərɪdʒ/",
+    "level": 3,
+    "zh": "杠杆"
+  },
+  "liability": {
+    "ipa": "/ˌlaɪəˈbɪləti/",
+    "level": 2,
+    "zh": "负债"
+  },
+  "likely": {
+    "ipa": "/ˈlaɪkli/",
+    "level": 1,
+    "zh": "可能的"
+  },
+  "liquidity": {
+    "ipa": "/lɪˈkwɪdəti/",
+    "level": 3,
+    "zh": "流动性"
+  },
+  "litigation": {
+    "ipa": "/ˌlɪtɪˈɡeɪʃn/",
+    "level": 3,
+    "zh": "诉讼"
+  },
+  "little": {
+    "ipa": "/ˈlɪtl/",
+    "level": 1,
+    "zh": "少的"
+  },
+  "live": {
+    "ipa": "/lɪv/",
+    "level": 1,
+    "zh": "生活"
+  },
+  "local": {
+    "ipa": "/ˈləʊkl/",
+    "level": 1,
+    "zh": "当地的"
+  },
+  "long": {
+    "ipa": "/lɒŋ/",
+    "level": 1,
+    "zh": "长的"
+  },
+  "lose": {
+    "ipa": "/luːz/",
+    "level": 1,
+    "zh": "失去"
+  },
+  "love": {
+    "ipa": "/lʌv/",
+    "level": 1,
+    "zh": "爱"
+  },
+  "low": {
+    "ipa": "/ləʊ/",
+    "level": 1,
+    "zh": "低的"
+  },
+  "lowest": {
+    "ipa": "/ˈləʊɪst/",
+    "level": 1,
+    "zh": "最低的"
+  },
+  "main": {
+    "ipa": "/meɪn/",
+    "level": 1,
+    "zh": "主要的"
+  },
+  "major": {
+    "ipa": "/ˈmeɪdʒə(r)/",
+    "level": 1,
+    "zh": "主要的"
+  },
+  "make": {
+    "ipa": "/meɪk/",
+    "level": 1,
+    "zh": "使"
+  },
+  "malware": {
+    "ipa": "/mælweə(r)/",
+    "level": 3,
+    "zh": "恶意软件"
+  },
+  "man": {
+    "ipa": "/mæn/",
+    "level": 1,
+    "zh": "男人"
+  },
+  "mandate": {
+    "ipa": "/mændeɪt/",
+    "level": 2,
+    "zh": "授权"
+  },
+  "many": {
+    "ipa": "/ˈmeni/",
+    "level": 1,
+    "zh": "很多"
+  },
+  "margin": {
+    "ipa": "/mɑːdʒɪn/",
+    "level": 2,
+    "zh": "保证金"
+  },
+  "market": {
+    "ipa": "/mɑːkɪt/",
+    "level": 1,
+    "zh": "市场"
+  },
+  "mediate": {
+    "ipa": "/ˈmiːdieɪt/",
+    "level": 2,
+    "zh": "调解，斡旋"
+  },
+  "meet": {
+    "ipa": "/miːt/",
+    "level": 1,
+    "zh": "遇见"
+  },
+  "merely": {
+    "ipa": "/ˈmɪəli/",
+    "level": 1,
+    "zh": "仅仅"
+  },
+  "merger": {
+    "ipa": "/mɜːdʒə(r)/",
+    "level": 2,
+    "zh": "并购"
+  },
+  "mexico": {
+    "ipa": "/ˈmeksɪkəʊ/",
+    "level": 1,
+    "zh": "墨西哥"
+  },
+  "militant": {
+    "ipa": "/mɪlɪtənt/",
+    "level": 2,
+    "zh": "武装分子"
+  },
+  "military": {
+    "ipa": "/ˈmɪlətri/",
+    "level": 1,
+    "zh": "军事的"
+  },
+  "militia": {
+    "ipa": "/məˈlɪʃə/",
+    "level": 2,
+    "zh": "民兵"
+  },
+  "minister": {
+    "ipa": "/ˈmɪnɪstə(r)/",
+    "level": 1,
+    "zh": "部长"
+  },
+  "minor": {
+    "ipa": "/ˈmaɪnə(r)/",
+    "level": 2,
+    "zh": "次要的"
+  },
+  "missile": {
+    "ipa": "/mɪsaɪl/",
+    "level": 2,
+    "zh": "导弹"
+  },
+  "mitigate": {
+    "ipa": "/ˈmɪtɪɡeɪt/",
+    "level": 3,
+    "zh": "减轻，缓解"
+  },
+  "monetary": {
+    "ipa": "/mʌnɪtri/",
+    "level": 3,
+    "zh": "货币"
+  },
+  "monopoly": {
+    "ipa": "/məˈnɒpəli/",
+    "level": 2,
+    "zh": "垄断"
+  },
+  "month": {
+    "ipa": "/mʌnθ/",
+    "level": 1,
+    "zh": "月"
+  },
+  "more": {
+    "ipa": "/mɔː(r)/",
+    "level": 1,
+    "zh": "更多"
+  },
+  "mortgage": {
+    "ipa": "/mɔːɡɪdʒ/",
+    "level": 2,
+    "zh": "抵押贷款"
+  },
+  "most": {
+    "ipa": "/məʊst/",
+    "level": 1,
+    "zh": "大多数"
+  },
+  "move": {
+    "ipa": "/muːv/",
+    "level": 1,
+    "zh": "移动"
+  },
+  "much": {
+    "ipa": "/mʌtʃ/",
+    "level": 1,
+    "zh": "很多"
+  },
+  "national": {
+    "ipa": "/ˈnæʃnəl/",
+    "level": 1,
+    "zh": "国家的"
+  },
+  "naval": {
+    "ipa": "/neɪvl/",
+    "level": 2,
+    "zh": "海军"
+  },
+  "nearly": {
+    "ipa": "/ˈnɪəli/",
+    "level": 1,
+    "zh": "将近"
+  },
+  "necessary": {
+    "ipa": "/ˈnesəsəri/",
+    "level": 1,
+    "zh": "必要的"
+  },
+  "need": {
+    "ipa": "/niːd/",
+    "level": 1,
+    "zh": "需要"
+  },
+  "negotiate": {
+    "ipa": "/nɪˈɡəʊʃieɪt/",
+    "level": 2,
+    "zh": "谈判"
+  },
+  "neither": {
+    "ipa": "/ˈnaɪðə(r)/",
+    "level": 2,
+    "zh": "两者都不"
+  },
+  "new": {
+    "ipa": "/njuː/",
+    "level": 1,
+    "zh": "新的"
+  },
+  "nothing": {
+    "ipa": "/ˈnʌθɪŋ/",
+    "level": 1,
+    "zh": "没有"
+  },
+  "now": {
+    "ipa": "/naʊ/",
+    "level": 1,
+    "zh": "现在"
+  },
+  "nuclear": {
+    "ipa": "/njuːkliə(r)/",
+    "level": 1,
+    "zh": "核武器"
+  },
+  "numerous": {
+    "ipa": "/ˈnjuːmərəs/",
+    "level": 2,
+    "zh": "许多的"
+  },
+  "obvious": {
+    "ipa": "/ˈɒbviəs/",
+    "level": 1,
+    "zh": "明显的"
+  },
+  "occupation": {
+    "ipa": "/ˌɒkjuˈpeɪʃn/",
+    "level": 2,
+    "zh": "占领"
+  },
+  "occupying": {
+    "ipa": "/ˈɒkjupaɪɪŋ/",
+    "level": 1,
+    "zh": "占领"
+  },
+  "offence": {
+    "ipa": "/əˈfens/",
+    "level": 1,
+    "zh": "进攻"
+  },
+  "offer": {
+    "ipa": "/ˈɒfə(r)/",
+    "level": 1,
+    "zh": "提供"
+  },
+  "official": {
+    "ipa": "/əˈfɪʃl/",
+    "level": 1,
+    "zh": "官员"
+  },
+  "old": {
+    "ipa": "/əʊld/",
+    "level": 1,
+    "zh": "旧的"
+  },
+  "open": {
+    "ipa": "/ˈəʊpən/",
+    "level": 1,
+    "zh": "打开"
+  },
+  "opponents": {
+    "ipa": "/əˈpəʊnənts/",
+    "level": 1,
+    "zh": "对手"
+  },
+  "opposition": {
+    "ipa": "/ˌɒpəˈzɪʃn/",
+    "level": 1,
+    "zh": "反对派"
+  },
+  "others": {
+    "ipa": "/ˈʌðəz/",
+    "level": 1,
+    "zh": "其他"
+  },
+  "outrage": {
+    "ipa": "/aʊtreɪdʒ/",
+    "level": 2,
+    "zh": "愤怒"
+  },
+  "over": {
+    "ipa": "/ˈəʊvə(r)/",
+    "level": 1,
+    "zh": "在...上面"
+  },
+  "own": {
+    "ipa": "/əʊn/",
+    "level": 1,
+    "zh": "自己的"
+  },
+  "parliament": {
+    "ipa": "/pɑːləmənt/",
+    "level": 2,
+    "zh": "议会"
+  },
+  "part": {
+    "ipa": "/pɑːt/",
+    "level": 1,
+    "zh": "部分"
+  },
+  "particular": {
+    "ipa": "/pəˈtɪkjʊlə(r)/",
+    "level": 2,
+    "zh": "特别的"
+  },
+  "particularly": {
+    "ipa": "/pəˈtɪkjʊləli/",
+    "level": 2,
+    "zh": "特别地"
+  },
+  "pay": {
+    "ipa": "/peɪ/",
+    "level": 1,
+    "zh": "支付"
+  },
+  "peace": {
+    "ipa": "/piːs/",
+    "level": 1,
+    "zh": "和平"
+  },
+  "people": {
+    "ipa": "/ˈpiːpl/",
+    "level": 1,
+    "zh": "人们"
+  },
+  "perhaps": {
+    "ipa": "/pəˈhæps/",
+    "level": 1,
+    "zh": "也许"
+  },
+  "person": {
+    "ipa": "/ˈpɜːsn/",
+    "level": 1,
+    "zh": "人"
+  },
+  "pipeline": {
+    "ipa": "/paɪplaɪn/",
+    "level": 2,
+    "zh": "管道"
+  },
+  "place": {
+    "ipa": "/pleɪs/",
+    "level": 1,
+    "zh": "地方"
+  },
+  "plan": {
+    "ipa": "/plæn/",
+    "level": 1,
+    "zh": "计划"
+  },
+  "play": {
+    "ipa": "/pleɪ/",
+    "level": 1,
+    "zh": "玩"
+  },
+  "point": {
+    "ipa": "/pɔɪnt/",
+    "level": 1,
+    "zh": "点"
+  },
+  "policy": {
+    "ipa": "/ˈpɒləsi/",
+    "level": 1,
+    "zh": "政策"
+  },
+  "political": {
+    "ipa": "/pəˈlɪtɪkl/",
+    "level": 1,
+    "zh": "政治的"
+  },
+  "politician": {
+    "ipa": "/ˌpɒlɪˈtɪʃn/",
+    "level": 1,
+    "zh": "政治家"
+  },
+  "poor": {
+    "ipa": "/pɔː(r)/",
+    "level": 1,
+    "zh": "贫穷的"
+  },
+  "populist": {
+    "ipa": "/pɒpjʊlɪst/",
+    "level": 2,
+    "zh": "民粹主义者"
+  },
+  "portfolio": {
+    "ipa": "/pɔːtˈfəʊliəʊ/",
+    "level": 3,
+    "zh": "投资组合"
+  },
+  "possible": {
+    "ipa": "/ˈpɒsəbl/",
+    "level": 1,
+    "zh": "可能的"
+  },
+  "possibly": {
+    "ipa": "/ˈpɒsəbli/",
+    "level": 1,
+    "zh": "也许"
+  },
+  "potential": {
+    "ipa": "/pəˈtenʃl/",
+    "level": 2,
+    "zh": "潜在的"
+  },
+  "powerful": {
+    "ipa": "/ˈpaʊəfl/",
+    "level": 1,
+    "zh": "强大的"
+  },
+  "precedent": {
+    "ipa": "/presɪdənt/",
+    "level": 3,
+    "zh": "先例"
+  },
+  "president": {
+    "ipa": "/ˈprezɪdənt/",
+    "level": 1,
+    "zh": "总统"
+  },
+  "previous": {
+    "ipa": "/ˈpriːviəs/",
+    "level": 2,
+    "zh": "之前的"
+  },
+  "prime minister": {
+    "ipa": "/praɪm ˈmɪnɪstə(r)/",
+    "level": 1,
+    "zh": "总理"
+  },
+  "private": {
+    "ipa": "/ˈpraɪvət/",
+    "level": 1,
+    "zh": "私人的"
+  },
+  "probably": {
+    "ipa": "/ˈprɒbəbli/",
+    "level": 1,
+    "zh": "可能"
+  },
+  "problem": {
+    "ipa": "/ˈprɒbləm/",
+    "level": 1,
+    "zh": "问题"
+  },
+  "proliferation": {
+    "ipa": "/prəˌlɪfəˈreɪʃn/",
+    "level": 3,
+    "zh": "扩散"
+  },
+  "prosecutor": {
+    "ipa": "/prɒsɪkjuːtə(r)/",
+    "level": 2,
+    "zh": "检察官"
+  },
+  "protests": {
+    "ipa": "/prəʊtests/",
+    "level": 1,
+    "zh": "抗议"
+  },
+  "protocol": {
+    "ipa": "/prəʊtəkɒl/",
+    "level": 2,
+    "zh": "协议"
+  },
+  "provide": {
+    "ipa": "/prəˈvaɪd/",
+    "level": 1,
+    "zh": "提供"
+  },
+  "proxies": {
+    "ipa": "/prɒksiz/",
+    "level": 2,
+    "zh": "代理人"
+  },
+  "proxy": {
+    "ipa": "/prɒksi/",
+    "level": 2,
+    "zh": "代理"
+  },
+  "public": {
+    "ipa": "/ˈpʌblɪk/",
+    "level": 1,
+    "zh": "公共的"
+  },
+  "punitive": {
+    "ipa": "/pjuːnətɪv/",
+    "level": 3,
+    "zh": "惩罚性的"
+  },
+  "put": {
+    "ipa": "/pʊt/",
+    "level": 1,
+    "zh": "放"
+  },
+  "question": {
+    "ipa": "/ˈkwestʃən/",
+    "level": 1,
+    "zh": "问题"
+  },
+  "radical": {
+    "ipa": "/rædɪkl/",
+    "level": 2,
+    "zh": "激进派"
+  },
+  "rather": {
+    "ipa": "/ˈrɑːðə(r)/",
+    "level": 1,
+    "zh": "相当"
+  },
+  "reach": {
+    "ipa": "/riːtʃ/",
+    "level": 1,
+    "zh": "达到"
+  },
+  "read": {
+    "ipa": "/riːd/",
+    "level": 1,
+    "zh": "读"
+  },
+  "ready": {
+    "ipa": "/ˈredi/",
+    "level": 1,
+    "zh": "准备好的"
+  },
+  "real": {
+    "ipa": "/rɪəl/",
+    "level": 1,
+    "zh": "真实的"
+  },
+  "reason": {
+    "ipa": "/ˈriːzn/",
+    "level": 1,
+    "zh": "原因"
+  },
+  "recent": {
+    "ipa": "/ˈriːsnt/",
+    "level": 2,
+    "zh": "最近的"
+  },
+  "recession": {
+    "ipa": "/rɪˈseʃn/",
+    "level": 2,
+    "zh": "衰退"
+  },
+  "recovery": {
+    "ipa": "/rɪˈkʌvəri/",
+    "level": 2,
+    "zh": "复苏"
+  },
+  "reform": {
+    "ipa": "/rɪˈfɔːm/",
+    "level": 1,
+    "zh": "改革"
+  },
+  "refugees": {
+    "ipa": "/refjudiːz/",
+    "level": 2,
+    "zh": "难民"
+  },
+  "regime": {
+    "ipa": "/reɪˈʒiːm/",
+    "level": 2,
+    "zh": "政权"
+  },
+  "region": {
+    "ipa": "/ˈriːdʒən/",
+    "level": 1,
+    "zh": "地区"
+  },
+  "remain": {
+    "ipa": "/rɪˈmeɪn/",
+    "level": 1,
+    "zh": "保持"
+  },
+  "remember": {
+    "ipa": "/rɪˈmembə(r)/",
+    "level": 1,
+    "zh": "记住"
+  },
+  "report": {
+    "ipa": "/rɪˈpɔːt/",
+    "level": 1,
+    "zh": "报告"
+  },
+  "reportedly": {
+    "ipa": "/rɪˈpɔːtɪdli/",
+    "level": 3,
+    "zh": "据报道"
+  },
+  "reserve": {
+    "ipa": "/rɪˈzɜːv/",
+    "level": 1,
+    "zh": "储备"
+  },
+  "resilience": {
+    "ipa": "/rɪˈzɪliəns/",
+    "level": 3,
+    "zh": "韧性"
+  },
+  "restructuring": {
+    "ipa": "/riːˈstrʌktʃərɪŋ/",
+    "level": 3,
+    "zh": "重组"
+  },
+  "result": {
+    "ipa": "/rɪˈzʌlt/",
+    "level": 1,
+    "zh": "结果"
+  },
+  "retaliate": {
+    "ipa": "/rɪˈtælieɪt/",
+    "level": 3,
+    "zh": "报复"
+  },
+  "retaliation": {
+    "ipa": "/rɪˌtæliˈeɪʃn/",
+    "level": 3,
+    "zh": "报复"
+  },
+  "revenue": {
+    "ipa": "/revənjuː/",
+    "level": 2,
+    "zh": "收入"
+  },
+  "rich": {
+    "ipa": "/rɪtʃ/",
+    "level": 1,
+    "zh": "富有的"
+  },
+  "right": {
+    "ipa": "/raɪt/",
+    "level": 1,
+    "zh": "正确的"
+  },
+  "run": {
+    "ipa": "/rʌn/",
+    "level": 1,
+    "zh": "跑"
+  },
+  "russia": {
+    "ipa": "/ˈrʌʃə/",
+    "level": 1,
+    "zh": "俄罗斯"
+  },
+  "russian": {
+    "ipa": "/ˈrʌʃən/",
+    "level": 1,
+    "zh": "俄罗斯的"
+  },
+  "sad": {
+    "ipa": "/sæd/",
+    "level": 1,
+    "zh": "悲伤的"
+  },
+  "sanctions": {
+    "ipa": "/sæŋkʃnz/",
+    "level": 2,
+    "zh": "制裁"
+  },
+  "scandal": {
+    "ipa": "/skændl/",
+    "level": 2,
+    "zh": "丑闻"
+  },
+  "scrutiny": {
+    "ipa": "/skruːtɪni/",
+    "level": 3,
+    "zh": "审查"
+  },
+  "security": {
+    "ipa": "/sɪˈkjʊərəti/",
+    "level": 1,
+    "zh": "安全"
+  },
+  "see": {
+    "ipa": "/siː/",
+    "level": 1,
+    "zh": "看见"
+  },
+  "seem": {
+    "ipa": "/siːm/",
+    "level": 1,
+    "zh": "似乎"
+  },
+  "send": {
+    "ipa": "/send/",
+    "level": 1,
+    "zh": "发送"
+  },
+  "serve": {
+    "ipa": "/sɜːv/",
+    "level": 1,
+    "zh": "服务"
+  },
+  "set": {
+    "ipa": "/set/",
+    "level": 1,
+    "zh": "设置"
+  },
+  "settlement": {
+    "ipa": "/setlmənt/",
+    "level": 1,
+    "zh": "和解"
+  },
+  "several": {
+    "ipa": "/ˈsevrəl/",
+    "level": 1,
+    "zh": "几个"
+  },
+  "sham": {
+    "ipa": "/ʃæm/",
+    "level": 2,
+    "zh": "虚假的"
+  },
+  "shareholder": {
+    "ipa": "/ʃeəhəʊldə(r)/",
+    "level": 1,
+    "zh": "股东"
+  },
+  "short": {
+    "ipa": "/ʃɔːt/",
+    "level": 1,
+    "zh": "短的"
+  },
+  "show": {
+    "ipa": "/ʃəʊ/",
+    "level": 1,
+    "zh": "显示"
+  },
+  "side": {
+    "ipa": "/saɪd/",
+    "level": 1,
+    "zh": "方面"
+  },
+  "siege": {
+    "ipa": "/siːdʒ/",
+    "level": 2,
+    "zh": "围攻"
+  },
+  "significant": {
+    "ipa": "/sɪɡˈnɪfɪkənt/",
+    "level": 1,
+    "zh": "重要的"
+  },
+  "similar": {
+    "ipa": "/ˈsɪmələ(r)/",
+    "level": 1,
+    "zh": "相似的"
+  },
+  "simple": {
+    "ipa": "/ˈsɪmpl/",
+    "level": 1,
+    "zh": "简单的"
+  },
+  "simply": {
+    "ipa": "/ˈsɪmpli/",
+    "level": 1,
+    "zh": "简单地"
+  },
+  "since": {
+    "ipa": "/sɪns/",
+    "level": 1,
+    "zh": "自从"
+  },
+  "sit": {
+    "ipa": "/sɪt/",
+    "level": 1,
+    "zh": "坐"
+  },
+  "slow": {
+    "ipa": "/sləʊ/",
+    "level": 1,
+    "zh": "慢的"
+  },
+  "small": {
+    "ipa": "/smɔːl/",
+    "level": 1,
+    "zh": "小的"
+  },
+  "smallest": {
+    "ipa": "/ˈsmɔːlɪst/",
+    "level": 1,
+    "zh": "最小的"
+  },
+  "snapshot": {
+    "ipa": "/snæpʃɒt/",
+    "level": 2,
+    "zh": "快照"
+  },
+  "social": {
+    "ipa": "/ˈsəʊʃl/",
+    "level": 1,
+    "zh": "社会的"
+  },
+  "soft": {
+    "ipa": "/sɒft/",
+    "level": 1,
+    "zh": "软的"
+  },
+  "something": {
+    "ipa": "/ˈsʌmθɪŋ/",
+    "level": 1,
+    "zh": "某事"
+  },
+  "sovereignty": {
+    "ipa": "/sɒvrənti/",
+    "level": 3,
+    "zh": "主权"
+  },
+  "speak": {
+    "ipa": "/spiːk/",
+    "level": 1,
+    "zh": "说"
+  },
+  "specific": {
+    "ipa": "/spəˈsɪfɪk/",
+    "level": 2,
+    "zh": "具体的"
+  },
+  "speculation": {
+    "ipa": "/ˌspekjuˈleɪʃn/",
+    "level": 3,
+    "zh": "投机"
+  },
+  "spend": {
+    "ipa": "/spend/",
+    "level": 1,
+    "zh": "花费"
+  },
+  "spy": {
+    "ipa": "/spaɪ/",
+    "level": 1,
+    "zh": "间谍"
+  },
+  "stakeholder": {
+    "ipa": "/steɪkhəʊldə(r)/",
+    "level": 3,
+    "zh": "利益相关者"
+  },
+  "stalled": {
+    "ipa": "/stɔːld/",
+    "level": 2,
+    "zh": "停滞"
+  },
+  "stand": {
+    "ipa": "/stænd/",
+    "level": 1,
+    "zh": "站"
+  },
+  "state": {
+    "ipa": "/steɪt/",
+    "level": 1,
+    "zh": "州"
+  },
+  "stay": {
+    "ipa": "/steɪ/",
+    "level": 1,
+    "zh": "停留"
+  },
+  "still": {
+    "ipa": "/stɪl/",
+    "level": 1,
+    "zh": "仍然"
+  },
+  "stimulus": {
+    "ipa": "/stɪmjʊləs/",
+    "level": 3,
+    "zh": "刺激"
+  },
+  "stop": {
+    "ipa": "/stɒp/",
+    "level": 1,
+    "zh": "停止"
+  },
+  "strategic": {
+    "ipa": "/strəˈtiːdʒɪk/",
+    "level": 2,
+    "zh": "战略的"
+  },
+  "strategy": {
+    "ipa": "/strætədʒi/",
+    "level": 2,
+    "zh": "战略"
+  },
+  "strong": {
+    "ipa": "/strɒŋ/",
+    "level": 1,
+    "zh": "强的"
+  },
+  "subsidies": {
+    "ipa": "/sʌbsɪdiz/",
+    "level": 2,
+    "zh": "补贴"
+  },
+  "summit": {
+    "ipa": "/sʌmɪt/",
+    "level": 2,
+    "zh": "峰会"
+  },
+  "superpower": {
+    "ipa": "/suːpəpaʊə(r)/",
+    "level": 1,
+    "zh": "超级大国"
+  },
+  "support": {
+    "ipa": "/səˈpɔːt/",
+    "level": 1,
+    "zh": "支持"
+  },
+  "surplus": {
+    "ipa": "/sɜːpləs/",
+    "level": 2,
+    "zh": "盈余"
+  },
+  "surveillance": {
+    "ipa": "/sɜːˈveɪləns/",
+    "level": 3,
+    "zh": "监控"
+  },
+  "take": {
+    "ipa": "/teɪk/",
+    "level": 1,
+    "zh": "拿"
+  },
+  "talks": {
+    "ipa": "/tɔːks/",
+    "level": 1,
+    "zh": "会谈"
+  },
+  "tanker": {
+    "ipa": "/tæŋkə(r)/",
+    "level": 2,
+    "zh": "油轮"
+  },
+  "tap": {
+    "ipa": "/tæp/",
+    "level": 1,
+    "zh": "利用"
+  },
+  "tariffs": {
+    "ipa": "/tærɪfs/",
+    "level": 2,
+    "zh": "关税"
+  },
+  "tension": {
+    "ipa": "/tenʃn/",
+    "level": 1,
+    "zh": "紧张"
+  },
+  "terrorist": {
+    "ipa": "/terərɪst/",
+    "level": 1,
+    "zh": "恐怖分子"
+  },
+  "themselves": {
+    "ipa": "/ðemˈselvz/",
+    "level": 1,
+    "zh": "他们自己"
+  },
+  "then": {
+    "ipa": "/ðen/",
+    "level": 1,
+    "zh": "然后"
+  },
+  "there": {
+    "ipa": "/ðeə(r)/",
+    "level": 1,
+    "zh": "那里"
+  },
+  "therefore": {
+    "ipa": "/ˈðeəfɔː(r)/",
+    "level": 1,
+    "zh": "因此"
+  },
+  "thing": {
+    "ipa": "/θɪŋ/",
+    "level": 1,
+    "zh": "事情"
+  },
+  "think": {
+    "ipa": "/θɪŋk/",
+    "level": 1,
+    "zh": "认为"
+  },
+  "thread": {
+    "ipa": "/θred/",
+    "level": 2,
+    "zh": "线程"
+  },
+  "threat": {
+    "ipa": "/θret/",
+    "level": 1,
+    "zh": "威胁"
+  },
+  "through": {
+    "ipa": "/θruː/",
+    "level": 1,
+    "zh": "通过"
+  },
+  "time": {
+    "ipa": "/taɪm/",
+    "level": 1,
+    "zh": "时间"
+  },
+  "today": {
+    "ipa": "/təˈdeɪ/",
+    "level": 1,
+    "zh": "今天"
+  },
+  "together": {
+    "ipa": "/təˈɡeðə(r)/",
+    "level": 1,
+    "zh": "一起"
+  },
+  "tomorrow": {
+    "ipa": "/təˈmɒrəʊ/",
+    "level": 1,
+    "zh": "明天"
+  },
+  "toward": {
+    "ipa": "/təˈwɔːd/",
+    "level": 1,
+    "zh": "朝向"
+  },
+  "towards": {
+    "ipa": "/təˈwɔːdz/",
+    "level": 1,
+    "zh": "朝向"
+  },
+  "trade": {
+    "ipa": "/treɪd/",
+    "level": 1,
+    "zh": "贸易"
+  },
+  "traditional": {
+    "ipa": "/trəˈdɪʃənl/",
+    "level": 2,
+    "zh": "传统的"
+  },
+  "treasury": {
+    "ipa": "/treʒəri/",
+    "level": 2,
+    "zh": "财政部"
+  },
+  "tribunal": {
+    "ipa": "/traɪˈbjuːnl/",
+    "level": 3,
+    "zh": "法庭"
+  },
+  "troops": {
+    "ipa": "/truːps/",
+    "level": 1,
+    "zh": "军队"
+  },
+  "true": {
+    "ipa": "/truː/",
+    "level": 1,
+    "zh": "真实的"
+  },
+  "trump": {
+    "ipa": "/trʌmp/",
+    "level": 1,
+    "zh": "特朗普"
+  },
+  "ukraine": {
+    "ipa": "/juːˈkreɪn/",
+    "level": 1,
+    "zh": "乌克兰"
+  },
+  "ukrainean": {
+    "ipa": "/juːˈkreɪniən/",
+    "level": 1,
+    "zh": "乌克兰的"
+  },
+  "ultimate": {
+    "ipa": "/ˈʌltɪmət/",
+    "level": 2,
+    "zh": "最终的"
+  },
+  "unable": {
+    "ipa": "/ʌnˈeɪbl/",
+    "level": 2,
+    "zh": "不能"
+  },
+  "under": {
+    "ipa": "/ˈʌndə(r)/",
+    "level": 1,
+    "zh": "在...下面"
+  },
+  "understand": {
+    "ipa": "/ˌʌndəˈstænd/",
+    "level": 1,
+    "zh": "理解"
+  },
+  "unlikely": {
+    "ipa": "/ʌnˈlaɪkli/",
+    "level": 1,
+    "zh": "不太可能"
+  },
+  "unrest": {
+    "ipa": "/ʌnˈrest/",
+    "level": 1,
+    "zh": "动荡"
+  },
+  "until": {
+    "ipa": "/ənˈtɪl/",
+    "level": 1,
+    "zh": "直到"
+  },
+  "up": {
+    "ipa": "/ʌp/",
+    "level": 1,
+    "zh": "向上"
+  },
+  "uranium": {
+    "ipa": "/jʊˈreɪniəm/",
+    "level": 2,
+    "zh": "铀"
+  },
+  "valuation": {
+    "ipa": "/ˌvæljuˈeɪʃn/",
+    "level": 3,
+    "zh": "估值"
+  },
+  "various": {
+    "ipa": "/ˈveəriəs/",
+    "level": 2,
+    "zh": "各种各样的"
+  },
+  "verdict": {
+    "ipa": "/vɜːdɪkt/",
+    "level": 2,
+    "zh": "裁决"
+  },
+  "volatility": {
+    "ipa": "/ˌvɒləˈtɪləti/",
+    "level": 3,
+    "zh": "波动性"
+  },
+  "vulnerable": {
+    "ipa": "/vʌlnərəbl/",
+    "level": 2,
+    "zh": "脆弱的"
+  },
+  "wait": {
+    "ipa": "/weɪt/",
+    "level": 1,
+    "zh": "等待"
+  },
+  "walk": {
+    "ipa": "/wɔːk/",
+    "level": 1,
+    "zh": "走"
+  },
+  "want": {
+    "ipa": "/wɒnt/",
+    "level": 1,
+    "zh": "想要"
+  },
+  "war": {
+    "ipa": "/wɔː(r)/",
+    "level": 1,
+    "zh": "战争"
+  },
+  "warrant": {
+    "ipa": "/wɒrənt/",
+    "level": 2,
+    "zh": "逮捕令"
+  },
+  "watch": {
+    "ipa": "/wɒtʃ/",
+    "level": 1,
+    "zh": "观看"
+  },
+  "way": {
+    "ipa": "/weɪ/",
+    "level": 1,
+    "zh": "方式"
+  },
+  "weak": {
+    "ipa": "/wiːk/",
+    "level": 1,
+    "zh": "弱的"
+  },
+  "week": {
+    "ipa": "/wiːk/",
+    "level": 1,
+    "zh": "周"
+  },
+  "while": {
+    "ipa": "/waɪl/",
+    "level": 1,
+    "zh": "当"
+  },
+  "whole": {
+    "ipa": "/həʊl/",
+    "level": 1,
+    "zh": "整个的"
+  },
+  "willing": {
+    "ipa": "/ˈwɪlɪŋ/",
+    "level": 2,
+    "zh": "愿意"
+  },
+  "win": {
+    "ipa": "/wɪn/",
+    "level": 1,
+    "zh": "赢"
+  },
+  "within": {
+    "ipa": "/wɪˈðɪn/",
+    "level": 1,
+    "zh": "在...之内"
+  },
+  "without": {
+    "ipa": "/wɪˈðaʊt/",
+    "level": 1,
+    "zh": "没有"
+  },
+  "woman": {
+    "ipa": "/ˈwʊmən/",
+    "level": 1,
+    "zh": "女人"
+  },
+  "world": {
+    "ipa": "/wɜːld/",
+    "level": 1,
+    "zh": "世界"
+  },
+  "worse": {
+    "ipa": "/wɜːs/",
+    "level": 1,
+    "zh": "更差的"
+  },
+  "worst": {
+    "ipa": "/wɜːst/",
+    "level": 1,
+    "zh": "最差的"
+  },
+  "write": {
+    "ipa": "/raɪt/",
+    "level": 1,
+    "zh": "写"
+  },
+  "wrong": {
+    "ipa": "/rɒŋ/",
+    "level": 1,
+    "zh": "错误的"
+  },
+  "year": {
+    "ipa": "/jɪə(r)/",
+    "level": 1,
+    "zh": "年"
+  },
+  "yesterday": {
+    "ipa": "/ˈjestədeɪ/",
+    "level": 1,
+    "zh": "昨天"
+  },
+  "young": {
+    "ipa": "/jʌŋ/",
+    "level": 1,
+    "zh": "年轻的"
+  }
+}

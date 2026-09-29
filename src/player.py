@@ -29,7 +29,7 @@ import threading
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 try:
     import edge_tts
@@ -47,15 +47,70 @@ DEFAULT_VOICE = "en-GB-SoniaNeural"
 # ---- 项目布局：源码在 src/，产物在 dist/，个人数据在 data/ ----
 SRC_DIR = Path(__file__).resolve().parent
 ROOT_DIR = SRC_DIR.parent
-DATA_DIR = ROOT_DIR / "data"      # config / vocab / progress（不入库）
 DIST_DIR = ROOT_DIR / "dist"      # 音频与生成的页面（不入库）
+MD_ROOT = DIST_DIR / "md"         # EPUB 转出的资料库：dist/md/<期号>/*.md
+PRINT_ROOT = DIST_DIR / "print"   # 整期合并的可打印 HTML
+
+# 数据目录可被设置页更改；指向它的「指针」放在固定位置，不随数据目录移动
+BOOTSTRAP_FILE = Path.home() / "Library" / "Application Support" / "Echo" / "settings.json"
+
+
+def load_bootstrap():
+    try:
+        data = json.loads(BOOTSTRAP_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def save_bootstrap(cfg):
+    try:
+        BOOTSTRAP_FILE.parent.mkdir(parents=True, exist_ok=True)
+        BOOTSTRAP_FILE.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n",
+                                  encoding="utf-8")
+    except OSError:
+        pass
+
+
+def resolve_data_dir():
+    d = load_bootstrap().get("data_dir")
+    if isinstance(d, str) and d.strip():
+        return Path(d).expanduser()
+    return ROOT_DIR / "data"
+
+
+DATA_DIR = resolve_data_dir()
+CONFIG_FILE = DATA_DIR / "config.json"      # 搜索路径
+VOCAB_FILE = DATA_DIR / "vocab.json"        # 生词本
+PROGRESS_FILE = DATA_DIR / "progress.json"  # 学习进度
 try:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 except OSError:
     pass
 
+
+def set_data_dir(new_dir):
+    """更改数据目录（传空字符串则恢复默认），并刷新全局路径。"""
+    global DATA_DIR, CONFIG_FILE, VOCAB_FILE, PROGRESS_FILE
+    cfg = load_bootstrap()
+    new_dir = (new_dir or "").strip()
+    if new_dir:
+        cfg["data_dir"] = str(Path(new_dir).expanduser())
+    else:
+        cfg.pop("data_dir", None)
+    save_bootstrap(cfg)
+    DATA_DIR = resolve_data_dir()
+    CONFIG_FILE = DATA_DIR / "config.json"
+    VOCAB_FILE = DATA_DIR / "vocab.json"
+    PROGRESS_FILE = DATA_DIR / "progress.json"
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    return DATA_DIR
+
+
 # ---- 搜索路径配置（记住用户的学习资料目录）----
-CONFIG_FILE = DATA_DIR / "config.json"
 DEFAULT_SEARCH_DIR = "/Volumes/EAGET忆捷/英语学习/Economist/2026"
 
 
@@ -70,6 +125,23 @@ def get_search_dirs():
     return [d for d in (load_config().get("search_dirs") or []) if isinstance(d, str)]
 
 
+def _count_subdirs(p):
+    try:
+        return sum(1 for d in Path(p).iterdir()
+                   if d.is_dir() and not d.name.startswith("."))
+    except OSError:
+        return 0
+
+
+def _save_config(cfg):
+    try:
+        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CONFIG_FILE.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n",
+                               encoding="utf-8")
+    except OSError:
+        pass
+
+
 def save_search_dir(d):
     """把目录记到 config.json（置顶去重）。"""
     d = str(Path(d).expanduser())
@@ -77,12 +149,83 @@ def save_search_dir(d):
     dirs = [x for x in (cfg.get("search_dirs") or []) if isinstance(x, str) and x != d]
     dirs.insert(0, d)
     cfg["search_dirs"] = dirs
-    CONFIG_FILE.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    _save_config(cfg)
     return dirs
 
 
+def remove_search_dir(d):
+    """从 config.json 移除一个搜索路径。"""
+    d = str(Path(d).expanduser())
+    cfg = load_config()
+    dirs = [x for x in (cfg.get("search_dirs") or []) if isinstance(x, str) and x != d]
+    cfg["search_dirs"] = dirs
+    _save_config(cfg)
+    return dirs
+
+
+def settings_payload():
+    """设置页需要的全部路径信息。"""
+    return {
+        "project_root": str(ROOT_DIR),
+        "src_dir": str(SRC_DIR),
+        "dist_dir": str(DIST_DIR),
+        "md_root": str(MD_ROOT),
+        "print_root": str(PRINT_ROOT),
+        "md_issues": _count_subdirs(MD_ROOT),
+        "data_dir": str(DATA_DIR),
+        "config_file": str(CONFIG_FILE),
+        "vocab_file": str(VOCAB_FILE),
+        "progress_file": str(PROGRESS_FILE),
+        "bootstrap_file": str(BOOTSTRAP_FILE),
+        "search_dirs": get_search_dirs(),
+    }
+
+
+def apply_data_dir(new_dir):
+    """更改数据目录，返回新的路径信息。"""
+    try:
+        d = set_data_dir(new_dir)
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": str(e)}
+    return {"ok": True, "data_dir": str(d), "config_file": str(CONFIG_FILE),
+            "vocab_file": str(VOCAB_FILE), "progress_file": str(PROGRESS_FILE)}
+
+
+def reveal_path(p):
+    """在 Finder 中显示路径（仅允许项目内或已登记的搜索路径）。"""
+    p = str(p or "").strip()
+    if not p:
+        return {"ok": False, "error": "路径为空"}
+    path = Path(p).expanduser()
+    try:
+        target = path.resolve()
+    except OSError:
+        return {"ok": False, "error": "路径无效"}
+
+    allowed = [ROOT_DIR.resolve(), DATA_DIR.resolve(), DIST_DIR.resolve()]
+    ok = any(target == r or r in target.parents for r in allowed)
+    if not ok:
+        for d in get_search_dirs():
+            try:
+                rd = Path(d).expanduser().resolve()
+                if target == rd or rd in target.parents:
+                    ok = True
+                    break
+            except OSError:
+                continue
+    if not ok:
+        return {"ok": False, "error": "不允许访问该路径"}
+    if not path.exists():
+        return {"ok": False, "error": "路径不存在"}
+
+    if path.is_dir():
+        subprocess.Popen(["open", str(path)])
+    else:
+        subprocess.Popen(["open", "-R", str(path)])
+    return {"ok": True}
+
+
 # ---- 生词本（服务模式存文件，静态模式存浏览器 localStorage）----
-VOCAB_FILE = CONFIG_FILE.with_name("vocab.json")
 _vocab_lock = threading.Lock()
 
 
@@ -129,7 +272,6 @@ def vocab_clear():
 
 
 # ---- 学习进度（标记文章已完成）----
-PROGRESS_FILE = CONFIG_FILE.with_name("progress.json")
 _progress_lock = threading.Lock()
 
 
@@ -322,7 +464,10 @@ def build_player(title, sentences, audio_files, vocab, out_dir):
 def parse_md(md_path):
     """解析单个 md，返回 (title, sentences, vocab)。"""
     md_text = md_path.read_text(encoding="utf-8")
-    title = md_path.stem.replace("_", " ")
+    m = re.match(r"\s*#\s+(.+)", md_text)
+    h1 = m.group(1).strip() if m else ""
+    # 老数据的 H1 就是文件名，仍用「去下划线」版；新数据用真正的文章标题
+    title = h1 if (h1 and h1 != md_path.stem) else md_path.stem.replace("_", " ")
     paras = extract_paragraphs(md_text)
     sentences = []
     for p in paras:
@@ -355,6 +500,139 @@ def short_label(stem):
         label = " ".join(bits[3:])
         return label or tail.replace("_", " ")
     return tail.replace("_", " ")
+
+
+# ---------------------------------------------------------------------------
+# 「期 → 文章」索引库：索引只读文件名（启动快），正文按需解析后缓存
+# ---------------------------------------------------------------------------
+
+def art_audio_dir(out_root, issue, stem):
+    """音频目录：多期时按期号分folder，避免同名文件互相覆盖。"""
+    return (Path(out_root) / issue / stem) if issue else (Path(out_root) / stem)
+
+
+def art_payload(art):
+    """给前端的文章数据（audio 走全局文章号 ai，切期号也不会乱）。"""
+    return {
+        "title": art["title"], "label": art["label"], "id": art["id"],
+        "vocab": art["vocab"], "ai": art["ai"],
+        "sentences": [
+            {"text": s["text"], "audio": f"/audio/{art['ai']}/{si}.mp3"}
+            for si, s in enumerate(art["sentences"])
+        ],
+    }
+
+
+def issue_status(arts):
+    """某一期的就绪掩码（供 /status?issue=… 使用）。"""
+    rows, tot, rdy = [], 0, 0
+    for art in arts:
+        mask, r = [], 0
+        for s in art["sentences"]:
+            ok = TtsEngine.is_ready(s["path"])
+            mask.append("1" if ok else "0")
+            r += 1 if ok else 0
+        tot += len(mask)
+        rdy += r
+        rows.append({"ready": r, "mask": "".join(mask)})
+    return {"total": tot, "ready": rdy, "done": tot > 0 and rdy >= tot, "articles": rows}
+
+
+class Library:
+    """多期目录：含子目录且子目录里有 md 时，按子目录分期。"""
+
+    def __init__(self, root, out_root):
+        self.root = Path(root)
+        self.out_root = Path(out_root)
+        self.issues = []          # [{"id","label","count"}]
+        self.flat = []            # 全局顺序（ai 即下标）
+        self._by_issue = {}
+        self._arts = {}
+        self._lock = threading.Lock()
+        self._scan()
+
+    def _scan(self):
+        groups = []
+        # 只看「目录本身」的 md（非递归）；有则按单期处理，与老数据行为一致
+        root_mds = [p for p in sorted(self.root.glob("*.md"))
+                    if not p.name.startswith(".")]
+        if root_mds:
+            files = collect_md_files(self.root)      # 递归，老行为：含子目录 md
+            groups = [("", files)]
+            if len(files) > len(root_mds):
+                print(f"📂 目录本身含 md → 按单期处理"
+                      f"（连同子目录共 {len(files)} 篇）")
+        else:
+            for d in sorted(self.root.iterdir()):
+                if d.is_dir() and not d.name.startswith("."):
+                    mds = collect_md_files(d)
+                    if mds:
+                        groups.append((d.name, mds))
+        if not groups or not groups[0][1]:
+            sys.exit(f"在目录里没有找到 md 文件：{self.root}")
+        for iid, mds in groups:
+            bucket = []
+            for md in mds:
+                meta = {"ai": len(self.flat), "issue": iid, "stem": md.stem,
+                        "path": md, "label": short_label(md.stem)}
+                self.flat.append(meta)
+                bucket.append(meta)
+            self._by_issue[iid] = bucket
+            self.issues.append({"id": iid, "label": iid or self.root.name,
+                                "count": len(mds)})
+
+    def ensure(self, ai):
+        """解析（并缓存）第 ai 篇。"""
+        art = self._arts.get(ai)
+        if art is not None:
+            return art
+        with self._lock:
+            art = self._arts.get(ai)
+            if art is not None:
+                return art
+            meta = self.flat[ai]
+            title, sentences, vocab = parse_md(meta["path"])
+            adir = art_audio_dir(self.out_root, meta["issue"], meta["stem"])
+            art = {
+                "ai": ai, "issue": meta["issue"], "stem": meta["stem"],
+                "title": title or meta["label"], "label": meta["label"],
+                "id": f"{meta['issue']}/{meta['stem']}" if meta["issue"] else meta["stem"],
+                "vocab": vocab,
+                "sentences": [{"text": s, "path": adir / f"sent_{i:04d}.mp3"}
+                              for i, s in enumerate(sentences)],
+            }
+            self._arts[ai] = art
+            return art
+
+    def ensure_issue(self, issue_id):
+        return [self.ensure(m["ai"]) for m in self._by_issue.get(issue_id, [])]
+
+    def payload(self, issue_id):
+        return [art_payload(a) for a in self.ensure_issue(issue_id)]
+
+    def status(self, issue_id):
+        return issue_status(self.ensure_issue(issue_id))
+
+
+class SingleArticle:
+    """单文件模式：接口与 Library 保持一致。"""
+
+    def __init__(self, art):
+        self.art = art
+        self.issues = []
+        self.flat = [art]
+
+    def ensure(self, ai=0):
+        return self.art
+
+    def ensure_issue(self, issue_id=""):
+        return [self.art]
+
+    def payload(self, issue_id=""):
+        return [art_payload(self.art)]
+
+    def status(self, issue_id=""):
+        return issue_status([self.art])
 
 
 def build_playlist(articles, out_root):
@@ -602,7 +880,7 @@ def scan_articles(md_files, out_root):
     return articles
 
 
-def make_handler(page_html, articles, engine, status_payload):
+def make_handler(page_html, lib, engine, status_payload, on_issue_loaded=None):
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
@@ -637,12 +915,27 @@ def make_handler(page_html, articles, engine, status_payload):
                 return {}
 
         def do_GET(self):
-            path = urlparse(self.path).path
+            parsed = urlparse(self.path)
+            path = parsed.path
             if path in ("/", "/index.html", "/playlist.html", "/player.html"):
                 self._send(200, page_html, "text/html; charset=utf-8",
                            {"Cache-Control": "no-store"})
             elif path == "/status":
-                self._json_out(status_payload())
+                self._json_out(status_payload(
+                    parse_qs(parsed.query).get("issue", [""])[0]))
+            elif path == "/issues":
+                self._json_out({"issues": lib.issues})
+            elif path.startswith("/issue/"):
+                # 按需加载某一期（首次会解析该期 md，并后台预热其音频）
+                iid = unquote(path[len("/issue/"):])
+                try:
+                    payload = lib.payload(iid)
+                except Exception as e:  # noqa: BLE001
+                    return self._send(500, f"加载失败：{e}")
+                if on_issue_loaded:
+                    threading.Thread(target=on_issue_loaded, args=(iid,),
+                                     daemon=True).start()
+                self._json_out(payload)
             elif path == "/vocab":
                 self._json_out({"items": load_vocab()})
             elif path == "/vocab/add":
@@ -657,6 +950,22 @@ def make_handler(page_html, articles, engine, status_payload):
                 body = self._read_json()
                 self._json_out({"completed": progress_mark(body.get("id", ""),
                                                            bool(body.get("done")))})
+            elif path == "/settings":
+                self._json_out(settings_payload())
+            elif path == "/settings/add_search_dir":
+                d = self._read_json().get("dir", "")
+                if str(d or "").strip():
+                    self._json_out({"ok": True, "search_dirs": save_search_dir(d)})
+                else:
+                    self._json_out({"ok": False, "error": "路径为空",
+                                    "search_dirs": get_search_dirs()})
+            elif path == "/settings/remove_search_dir":
+                self._json_out({"ok": True, "search_dirs":
+                                remove_search_dir(self._read_json().get("dir", ""))})
+            elif path == "/settings/data_dir":
+                self._json_out(apply_data_dir(self._read_json().get("dir", "")))
+            elif path == "/settings/reveal":
+                self._json_out(reveal_path(self._read_json().get("path", "")))
             elif path.startswith("/audio/"):
                 self._audio(path)
             else:
@@ -670,9 +979,15 @@ def make_handler(page_html, articles, engine, status_payload):
             if not m:
                 return self._send(404, "bad audio path")
             ai, si = int(m.group(1)), int(m.group(2))
-            if ai >= len(articles) or si >= len(articles[ai]["sentences"]):
+            if ai >= len(lib.flat):
                 return self._send(404, "out of range")
-            sent = articles[ai]["sentences"][si]
+            try:
+                art = lib.ensure(ai)      # 首次访问该篇时才解析
+            except Exception as e:  # noqa: BLE001
+                return self._send(500, f"解析失败：{e}")
+            if si >= len(art["sentences"]):
+                return self._send(404, "out of range")
+            sent = art["sentences"][si]
             fpath = sent["path"]
             try:
                 if not TtsEngine.is_ready(fpath):
@@ -721,46 +1036,51 @@ def make_handler(page_html, articles, engine, status_payload):
 
 
 def run_serve(args):
+    out_root = Path(args.out) if args.out else DIST_DIR
+    out_root.mkdir(parents=True, exist_ok=True)
+
     if args.dir:
         root = Path(args.dir).expanduser()
         if not root.is_dir():
             sys.exit(f"目录不存在：{root}")
-        md_files = collect_md_files(root)
-        if not md_files:
-            sys.exit(f"在目录里没有找到 md 文件：{root}")
+        lib = Library(root, out_root)
         kind = "playlist"
+        cur_issue = lib.issues[0]["id"]
+        print(f"🗂️  索引 {len(lib.issues)} 期 / {len(lib.flat)} 篇（正文与音频按需解析）")
+        arts = lib.ensure_issue(cur_issue)
+        ready0 = sum(1 for a in arts for s in a["sentences"] if TtsEngine.is_ready(s["path"]))
+        print(f"📖 当前期「{cur_issue or root.name}」：{len(arts)} 篇、"
+              f"{sum(len(a['sentences']) for a in arts)} 句（已有 {ready0} 句音频）")
     else:
         md = Path(args.md).expanduser()
         if not md.exists():
             sys.exit(f"找不到文件：{md}")
-        md_files = [md]
-        kind = "single"
-
-    out_root = Path(args.out) if args.out else DIST_DIR
-    out_root.mkdir(parents=True, exist_ok=True)
-
-    print(f"🗂️  解析 {len(md_files)} 篇 md（不等合成）…")
-    articles = scan_articles(md_files, out_root)
-    if not articles:
-        sys.exit("没有可用的文章")
-
-    total = sum(len(a["sentences"]) for a in articles)
-    ready0 = sum(1 for a in articles for s in a["sentences"] if TtsEngine.is_ready(s["path"]))
-    print(f"📖 共 {len(articles)} 篇、{total} 句（已有 {ready0} 句音频）")
+        title, sentences, vocab = parse_md(md)
+        if not sentences:
+            sys.exit('md 里没有可朗读的英文（需要 <div class="original"> 原文段）')
+        art = {
+            "ai": 0, "issue": "", "stem": md.stem, "title": title,
+            "label": short_label(md.stem), "id": md.stem, "vocab": vocab,
+            "sentences": [
+                {"text": s,
+                 "path": art_audio_dir(out_root, "", md.stem) / f"sent_{i:04d}.mp3"}
+                for i, s in enumerate(sentences)
+            ],
+        }
+        lib = SingleArticle(art)
+        kind, cur_issue = "single", ""
+        print(f"📖 {art['title']}：{len(sentences)} 句")
 
     # 生成页面（音频走 /audio 接口，按需即时生成）
     if kind == "playlist":
-        page_data = [{
-            "title": a["title"], "label": a["label"], "id": a["stem"], "vocab": a["vocab"],
-            "sentences": [
-                {"text": s["text"], "audio": f"/audio/{ai}/{si}.mp3"}
-                for si, s in enumerate(a["sentences"])
-            ],
-        } for ai, a in enumerate(articles)]
         tpl = Path(__file__).with_name("playlist_template.html").read_text(encoding="utf-8")
-        page_html = tpl.replace("__ARTICLES_JSON__", json.dumps(page_data, ensure_ascii=False))
+        page_html = (tpl
+                     .replace("__ISSUES_JSON__", json.dumps(lib.issues, ensure_ascii=False))
+                     .replace("__CURRENT_ISSUE__", json.dumps(cur_issue, ensure_ascii=False))
+                     .replace("__ARTICLES_JSON__",
+                              json.dumps(lib.payload(cur_issue), ensure_ascii=False)))
     else:
-        a = articles[0]
+        a = lib.art
         page_data = [{"text": s["text"], "audio": f"/audio/0/{si}.mp3"}
                      for si, s in enumerate(a["sentences"])]
         tpl = Path(__file__).with_name("template.html").read_text(encoding="utf-8")
@@ -771,28 +1091,20 @@ def run_serve(args):
 
     engine = TtsEngine(args.voice, args.rate, args.workers)
 
-    def status_payload():
-        arts, tot, rdy = [], 0, 0
-        for a in articles:
-            mask, r = [], 0
-            for s in a["sentences"]:
-                ok = TtsEngine.is_ready(s["path"])
-                mask.append("1" if ok else "0")
-                r += 1 if ok else 0
-            tot += len(mask)
-            rdy += r
-            arts.append({"ready": r, "mask": "".join(mask)})
-        return {"total": tot, "ready": rdy, "done": rdy >= tot, "articles": arts}
+    def prefetch_issue(issue_id):
+        """把该期句子排入后台预生成队列（切期号时也会自动预热）。"""
+        for art in lib.ensure_issue(issue_id):
+            for s in art["sentences"]:
+                engine.schedule(s["text"], s["path"])
 
-    Handler = make_handler(page_html, articles, engine, status_payload)
+    Handler = make_handler(page_html, lib, engine, lib.status,
+                           on_issue_loaded=prefetch_issue)
     port = find_free_port(args.port)
     httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     url = f"http://127.0.0.1:{port}/"
 
-    # 后台预生成：按文章/句子顺序排队，先到先得
-    for a in articles:
-        for s in a["sentences"]:
-            engine.schedule(s["text"], s["path"])
+    # 先排队「当前期」，其余期号在切过去时再预热
+    prefetch_issue(cur_issue)
 
     print(f"\n▶️  已启动：{url}")
     print(f"   页面秒开；后台预生成 {engine.prefetch_workers} 路，另有 {engine.prio} 路留给「点哪句即时生成」。")

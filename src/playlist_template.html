@@ -32,6 +32,10 @@
     display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   }
   .title { font-family: var(--serif); font-size: 17px; font-weight: 700; white-space: nowrap; }
+  .issue-sel { font-size: 13px; padding: 5px 8px; border: 1px solid var(--line);
+               border-radius: 8px; background: var(--card); color: var(--ink);
+               max-width: 190px; }
+  .issue-sel.hidden { display: none; }
   .controls { display: flex; align-items: center; gap: 8px; }
   button {
     font-family: inherit; cursor: pointer; border: 1px solid var(--line);
@@ -171,12 +175,33 @@
   }
   .mark-btn:hover { border-color: #2e7d32; color: #2e7d32; }
   .mark-btn.done { background: #e8f5e9; border-color: #2e7d32; color: #2e7d32; font-weight: 600; }
+
+  /* ---- 设置页 ---- */
+  .set-section { padding: 4px 0 14px; border-bottom: 1px solid var(--line); }
+  .set-section:last-child { border-bottom: none; padding-bottom: 4px; }
+  .set-title { font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 8px; }
+  .set-title .hint { font-weight: 400; }
+  .set-list { display: flex; flex-direction: column; gap: 6px; }
+  .set-item, .set-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .set-row { margin-bottom: 7px; }
+  .set-label { color: var(--muted); min-width: 78px; flex-shrink: 0; }
+  .set-badge { background: var(--accent-soft); color: var(--accent); border-radius: 6px; padding: 1px 6px; font-size: 11px; flex-shrink: 0; }
+  .set-path { flex: 1; font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+              overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .set-empty { color: var(--muted); font-size: 13px; }
+  .set-add { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+  .set-add input { flex: 1; min-width: 240px; font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+                   padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px;
+                   background: var(--card); color: var(--ink); }
+  .set-add button { font-size: 13px; padding: 6px 12px; }
+  .set-note { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.6; }
 </style>
 </head>
 <body>
 <header>
   <div class="bar">
     <div class="title">🎧 Echo · 英语学习播放列表</div>
+    <select id="issue" class="issue-sel hidden" title="切换期号"></select>
     <div class="controls">
       <button id="prev" title="上一句 (←)">⏮</button>
       <button id="play" class="primary" title="播放/暂停 (空格)">▶</button>
@@ -198,6 +223,7 @@
         <option value="list" selected>列表循环</option>
       </select>
       <button id="vn-open" title="生词本">📒<span id="vn-count"></span></button>
+      <button id="set-open" title="设置">⚙️</button>
     </div>
     <div class="meta" id="counter"></div>
     <div class="meta" id="ready"></div>
@@ -268,10 +294,29 @@
   </div>
 </div>
 
+<div id="set-modal" class="vn-modal hidden">
+  <div class="vn-panel" style="width:min(700px, calc(100vw - 32px))">
+    <div class="vn-head">
+      <h3>⚙️ 设置</h3>
+      <button id="set-close">✕</button>
+    </div>
+    <div class="vn-list" id="set-body" style="padding:12px 18px"></div>
+  </div>
+</div>
+
 <script>
-const ARTICLES = __ARTICLES_JSON__;
-const vocabCache = ARTICLES.map(ar => new Set((ar.vocab || []).map(v => v.word.toLowerCase())));
-const totalSentences = ARTICLES.reduce((s, ar) => s + ar.sentences.length, 0);
+const ISSUES = __ISSUES_JSON__;
+let ARTICLES = __ARTICLES_JSON__;
+let curIssue = __CURRENT_ISSUE__;
+const issueCache = {};
+let vocabCache = [];
+let totalSentences = 0;
+
+function indexArticles() {
+  vocabCache = ARTICLES.map(ar => new Set((ar.vocab || []).map(v => v.word.toLowerCase())));
+  totalSentences = ARTICLES.reduce((s, ar) => s + ar.sentences.length, 0);
+}
+indexArticles();
 
 let a = 0, idx = 0, playing = false, repeatMode = false, autoMode = true;
 let loopMode = "list";  // off=不循环 / track=单篇循环 / list=列表循环
@@ -408,10 +453,53 @@ function applyStatus(st) {
   }
 }
 function pollStatus() {
-  fetch("/status", { cache: "no-store" })
+  fetch(`/status?issue=${encodeURIComponent(curIssue || "")}`, { cache: "no-store" })
     .then(r => { if (!r.ok) throw new Error("no status"); return r.json(); })
     .then(st => { applyStatus(st); if (!st.done) setTimeout(pollStatus, 2000); })
     .catch(() => {});
+}
+
+// ---- 期号切换（多期模式；每期正文按需加载）----
+function initIssues() {
+  const sel = $("issue");
+  if (!ISSUES || ISSUES.length <= 1) return;   // 单期/单文件：不显示下拉
+  sel.innerHTML = ISSUES.map(i =>
+    `<option value="${esc(i.id)}">${esc(i.label)} · ${i.count} 篇</option>`).join("");
+  sel.value = curIssue;
+  sel.classList.remove("hidden");
+  sel.addEventListener("change", () => switchIssue(sel.value));
+}
+
+async function switchIssue(iid) {
+  if (!iid || iid === curIssue) return;
+  let data = issueCache[iid];
+  const sel = $("issue");
+  if (!data) {
+    sel.disabled = true;
+    $("pl-count").textContent = "加载中…";
+    try {
+      const r = await fetch(`/issue/${encodeURIComponent(iid)}`, { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      data = await r.json();
+      issueCache[iid] = data;
+    } catch (e) {
+      alert("加载该期失败：" + e.message);
+      sel.value = curIssue;
+      return;
+    } finally {
+      sel.disabled = false;
+    }
+  }
+  audio.pause(); playing = false; renderPlay();
+  curIssue = iid;
+  ARTICLES = data;
+  indexArticles();
+  a = 0; idx = 0; lastStatus = null;
+  renderPlaylist();
+  renderArticle();
+  setActive(0);
+  pollStatus();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 // ---- 生词本（服务模式存文件；静态模式存浏览器 localStorage）----
@@ -554,6 +642,103 @@ function updateMarkBtn() {
   const done = !!progress[ARTICLES[a].id];
   btn.textContent = done ? "✓ 已完成（点击取消）" : "✓ 标记完成";
   btn.classList.toggle("done", done);
+}
+
+// ---- 设置页（仅服务模式可用）----
+let settings = null;
+
+async function setLoad() {
+  try {
+    const r = await fetch("/settings", { cache: "no-store" });
+    if (!r.ok) throw new Error("no settings");
+    settings = await r.json();
+    return true;
+  } catch (e) { return false; }
+}
+
+async function setPost(path, body) {
+  try {
+    const r = await fetch(path, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    return r.ok ? await r.json() : { ok: false, error: "请求失败" };
+  } catch (e) { return { ok: false, error: String(e) }; }
+}
+
+function renderSettings() {
+  if (!settings) return;
+  const dirs = settings.search_dirs || [];
+  const dirRows = dirs.length
+    ? dirs.map((d, i) => `
+        <div class="set-item">
+          <span class="set-badge">${i === 0 ? "默认" : i + 1}</span>
+          <span class="set-path" title="${esc(d)}">${esc(d)}</span>
+          <button class="vn-btn" data-reveal="${esc(d)}" title="在 Finder 中显示">📂</button>
+          <button class="vn-btn" data-rmdir="${esc(d)}" title="移除">🗑</button>
+        </div>`).join("")
+    : '<div class="set-empty">还没有添加搜索路径</div>';
+
+  const infoRow = (label, p) => `
+    <div class="set-row">
+      <span class="set-label">${esc(label)}</span>
+      <span class="set-path" title="${esc(p)}">${esc(p)}</span>
+      <button class="vn-btn" data-reveal="${esc(p)}" title="在 Finder 中显示">📂</button>
+    </div>`;
+
+  $("set-body").innerHTML = `
+    <div class="set-section">
+      <div class="set-title">搜索路径 <span class="hint">（扫描 md 的目录，第一个为默认）</span></div>
+      <div class="set-list">${dirRows}</div>
+      <div class="set-add">
+        <input id="set-newdir" type="text" placeholder="输入目录绝对路径，如 /Volumes/磁盘/英语学习" />
+        <button id="set-addbtn">添加</button>
+      </div>
+      <div class="set-note">新增的路径会置顶为主路径；修改后需<b>重启 Echo</b> 才会重新扫描文章。</div>
+    </div>
+    <div class="set-section">
+      <div class="set-title">数据与产物路径</div>
+      ${infoRow("数据目录", settings.data_dir)}
+      ${infoRow("生词本", settings.vocab_file)}
+      ${infoRow("学习进度", settings.progress_file)}
+      ${infoRow("产物目录", settings.dist_dir)}
+      ${infoRow("项目根目录", settings.project_root)}
+      <div class="set-add">
+        <button id="set-datadir">更改数据目录…</button>
+        <button id="set-datadir-reset">恢复默认</button>
+      </div>
+      <div class="set-note">数据目录决定 config / 生词本 / 学习进度 的存放位置，修改后<b>立即生效</b>。</div>
+    </div>
+    <div class="set-section">
+      <div class="set-title">📚 资料库 <span class="hint">（EPUB 转换产物，由 tools/epub2md.py 生成）</span></div>
+      ${settings.md_root ? infoRow("md 资料库", settings.md_root) : ""}
+      ${settings.print_root ? infoRow("打印版目录", settings.print_root) : ""}
+      <div class="set-add">
+        <button id="set-usemd">把 md 资料库设为搜索路径</button>
+      </div>
+      <div class="set-note">库内现有 <b>${settings.md_issues || 0} 期</b>；设为搜索路径后重启 Echo，
+        即可按「期号 → 文章」两级浏览（顶栏出现期号下拉）。</div>
+    </div>`;
+}
+
+async function reloadUserData() {
+  await Promise.all([vnLoad(), pgLoad()]);
+  renderVocabBook();
+  renderPlaylist();
+  updateMarkBtn();
+}
+
+async function openSettings() {
+  $("set-modal").classList.remove("hidden");
+  if (!settings) {
+    $("set-body").innerHTML = '<div class="set-empty">加载中…</div>';
+    if (!(await setLoad())) {
+      $("set-body").innerHTML =
+        '<div class="set-empty">当前模式没有设置页（请用 launch.command 或 Echo.app 启动）</div>';
+      return;
+    }
+  }
+  renderSettings();
 }
 
 // ---- 渲染 ----
@@ -702,9 +887,12 @@ document.addEventListener("click", e => {
 });
 
 document.addEventListener("keydown", e => {
-  if (!$("vn-modal").classList.contains("hidden")) {
-    if (e.key === "Escape") $("vn-modal").classList.add("hidden");
-    return;
+  for (const id of ["vn-modal", "set-modal"]) {
+    const modal = $(id);
+    if (modal && !modal.classList.contains("hidden")) {
+      if (e.key === "Escape") modal.classList.add("hidden");
+      return;
+    }
   }
   if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
   if (e.code === "Space") { e.preventDefault(); togglePlay(); }
@@ -748,15 +936,72 @@ $("mark-done").addEventListener("click", async () => {
   setActive(idx);
 });
 
+// ---- 设置事件 ----
+$("set-open").addEventListener("click", openSettings);
+$("set-close").addEventListener("click", () => $("set-modal").classList.add("hidden"));
+$("set-modal").addEventListener("click", e => {
+  if (e.target.id === "set-modal") $("set-modal").classList.add("hidden");
+});
+$("set-body").addEventListener("click", async e => {
+  const rev = e.target.closest("[data-reveal]");
+  if (rev) {
+    const r = await setPost("/settings/reveal", { path: rev.dataset.reveal });
+    if (!r.ok) alert("无法打开：" + (r.error || ""));
+    return;
+  }
+  const rm = e.target.closest("[data-rmdir]");
+  if (rm) {
+    await setPost("/settings/remove_search_dir", { dir: rm.dataset.rmdir });
+    await setLoad();
+    renderSettings();
+    return;
+  }
+  if (e.target.id === "set-addbtn") {
+    const v = ($("set-newdir").value || "").trim();
+    if (!v) return;
+    const r = await setPost("/settings/add_search_dir", { dir: v });
+    if (!r.ok) { alert("添加失败：" + (r.error || "")); return; }
+    $("set-newdir").value = "";
+    await setLoad();
+    renderSettings();
+    return;
+  }
+  if (e.target.id === "set-usemd") {
+    if (!settings || !settings.md_root) return;
+    const r = await setPost("/settings/add_search_dir", { dir: settings.md_root });
+    if (!r.ok) { alert("添加失败：" + (r.error || "")); return; }
+    await setLoad();
+    renderSettings();
+    alert("已设为默认搜索路径，重启 Echo 生效。");
+    return;
+  }
+  if (e.target.id === "set-datadir" || e.target.id === "set-datadir-reset") {
+    const reset = e.target.id === "set-datadir-reset";
+    let v = "";
+    if (!reset) {
+      v = prompt("输入新的数据目录绝对路径（留空则恢复默认）：", settings ? settings.data_dir : "");
+      if (v === null) return;
+    }
+    const r = await setPost("/settings/data_dir", { dir: v });
+    if (!r.ok) { alert("设置失败：" + (r.error || "")); return; }
+    await setLoad();
+    renderSettings();
+    await reloadUserData();
+    return;
+  }
+});
+
 renderPlaylist();
 renderArticle();
 setActive(0);
+initIssues();
 pollStatus();
 Promise.all([vnLoad(), pgLoad()]).then(() => {
   renderVocabBook();
   renderPlaylist();
   updateMarkBtn();
 });
+setLoad().then(ok => { if (!ok) $("set-open").style.display = "none"; });
 </script>
 </body>
 </html>
