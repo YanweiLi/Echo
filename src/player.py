@@ -19,6 +19,7 @@ Echo —— 把《经济学人》学习笔记 md 转成「逐句跟读网页播�
 
 import argparse
 import asyncio
+import hashlib
 import html
 import json
 import re
@@ -26,10 +27,11 @@ import socket
 import subprocess
 import sys
 import threading
+import urllib.request
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlencode, urlparse
 
 try:
     import edge_tts
@@ -80,9 +82,10 @@ def resolve_data_dir():
 
 
 DATA_DIR = resolve_data_dir()
-CONFIG_FILE = DATA_DIR / "config.json"      # 搜索路径
-VOCAB_FILE = DATA_DIR / "vocab.json"        # 生词本
-PROGRESS_FILE = DATA_DIR / "progress.json"  # 学习进度
+CONFIG_FILE = DATA_DIR / "config.json"          # 搜索路径
+VOCAB_FILE = DATA_DIR / "vocab.json"            # 生词本
+PROGRESS_FILE = DATA_DIR / "progress.json"      # 学习进度
+TRANSLATIONS_FILE = DATA_DIR / "translations.json"  # 句子中译缓存
 try:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 except OSError:
@@ -91,7 +94,8 @@ except OSError:
 
 def set_data_dir(new_dir):
     """更改数据目录（传空字符串则恢复默认），并刷新全局路径。"""
-    global DATA_DIR, CONFIG_FILE, VOCAB_FILE, PROGRESS_FILE
+    global DATA_DIR, CONFIG_FILE, VOCAB_FILE, PROGRESS_FILE, TRANSLATIONS_FILE
+    global _TR_CACHE
     cfg = load_bootstrap()
     new_dir = (new_dir or "").strip()
     if new_dir:
@@ -103,6 +107,8 @@ def set_data_dir(new_dir):
     CONFIG_FILE = DATA_DIR / "config.json"
     VOCAB_FILE = DATA_DIR / "vocab.json"
     PROGRESS_FILE = DATA_DIR / "progress.json"
+    TRANSLATIONS_FILE = DATA_DIR / "translations.json"
+    _TR_CACHE = None          # 换了数据目录，中译缓存要重新加载
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
     except OSError:
@@ -176,6 +182,8 @@ def settings_payload():
         "config_file": str(CONFIG_FILE),
         "vocab_file": str(VOCAB_FILE),
         "progress_file": str(PROGRESS_FILE),
+        "translations_file": str(TRANSLATIONS_FILE),
+        "translated_count": len(load_translations()),
         "bootstrap_file": str(BOOTSTRAP_FILE),
         "search_dirs": get_search_dirs(),
     }
@@ -188,7 +196,8 @@ def apply_data_dir(new_dir):
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": str(e)}
     return {"ok": True, "data_dir": str(d), "config_file": str(CONFIG_FILE),
-            "vocab_file": str(VOCAB_FILE), "progress_file": str(PROGRESS_FILE)}
+            "vocab_file": str(VOCAB_FILE), "progress_file": str(PROGRESS_FILE),
+            "translations_file": str(TRANSLATIONS_FILE)}
 
 
 def reveal_path(p):
@@ -223,6 +232,99 @@ def reveal_path(p):
     else:
         subprocess.Popen(["open", "-R", str(path)])
     return {"ok": True}
+
+
+# ---- 句子中译：按需翻译 + 本地永久缓存（同一句只翻一次，不浪费接口额度）----
+_TR_CACHE = None          # 句 hash -> 中文（惰性加载，进程内复用）
+_TR_LOCK = threading.Lock()
+
+
+def load_translations():
+    global _TR_CACHE
+    if _TR_CACHE is None:
+        try:
+            data = json.loads(TRANSLATIONS_FILE.read_text(encoding="utf-8"))
+            _TR_CACHE = data if isinstance(data, dict) else {}
+        except Exception:  # noqa: BLE001
+            _TR_CACHE = {}
+    return _TR_CACHE
+
+
+def _save_translations():
+    try:
+        TRANSLATIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = TRANSLATIONS_FILE.with_name(TRANSLATIONS_FILE.name + ".part")
+        tmp.write_text(json.dumps(_TR_CACHE, ensure_ascii=False) + "\n",
+                       encoding="utf-8")
+        tmp.replace(TRANSLATIONS_FILE)   # 原子落盘
+    except OSError:
+        pass
+
+
+def _tr_key(text):
+    return hashlib.sha1(text.strip().encode("utf-8")).hexdigest()[:16]
+
+
+def _chunk_text(text, limit=450):
+    """MyMemory 单次请求 ≤ 500 字节，长句按标点切段后分别翻译再拼起来。"""
+    if len(text) <= limit:
+        return [text]
+    parts, cur = [], ""
+    for piece in re.split(r"(?<=[;:,.])\s+", text):
+        if cur and len(cur) + len(piece) + 1 > limit:
+            parts.append(cur)
+            cur = piece
+        else:
+            cur = f"{cur} {piece}".strip()
+    if cur:
+        parts.append(cur)
+    return parts or [text]
+
+
+def _mt_piece(text):
+    """MyMemory 免费接口（在 config.json 加 mymemory_email 可把额度提到 50k 字符/天）。"""
+    params = {"q": text, "langpair": "en|zh-CN"}
+    email = str(load_config().get("mymemory_email") or "").strip()
+    if email:
+        params["de"] = email
+    req = urllib.request.Request(
+        "https://api.mymemory.translated.net/get?" + urlencode(params),
+        headers={"User-Agent": "Echo/1.0"})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        data = json.loads(r.read().decode("utf-8", "ignore"))
+    if data.get("quotaFinished"):
+        raise RuntimeError("翻译额度已用完（可在 data/config.json 加 mymemory_email 提到 50k/天）")
+    if int(data.get("responseStatus") or 0) != 200:
+        raise RuntimeError(str(data.get("responseDetails") or "翻译服务返回异常"))
+    zh = html.unescape(str((data.get("responseData") or {}).get("translatedText") or ""))
+    zh = zh.strip()
+    if not zh:
+        raise RuntimeError("翻译结果为空")
+    return zh
+
+
+def translate_sentence(text):
+    """按需翻译一句：先查本地缓存（秒回、不耗额度），未命中才联网。"""
+    text = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not text:
+        return {"ok": False, "error": "文本为空"}
+    key = _tr_key(text)
+    with _TR_LOCK:
+        hit = load_translations().get(key)
+    if hit:
+        return {"ok": True, "zh": hit, "cached": True}
+    try:
+        zh = " ".join(_mt_piece(p) for p in _chunk_text(text))
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": str(e)}
+    with _TR_LOCK:
+        cache = load_translations()
+        cache[key] = zh
+        if len(cache) > 100000:            # 防无限膨胀：丢弃最早写入的 1/4
+            for k in list(cache)[:25000]:
+                cache.pop(k, None)
+        _save_translations()
+    return {"ok": True, "zh": zh, "cached": False}
 
 
 # ---- 生词本（服务模式存文件，静态模式存浏览器 localStorage）----
@@ -936,6 +1038,9 @@ def make_handler(page_html, lib, engine, status_payload, on_issue_loaded=None):
                     threading.Thread(target=on_issue_loaded, args=(iid,),
                                      daemon=True).start()
                 self._json_out(payload)
+            elif path == "/translate":
+                self._json_out(translate_sentence(
+                    parse_qs(parsed.query).get("text", [""])[0]))
             elif path == "/vocab":
                 self._json_out({"items": load_vocab()})
             elif path == "/vocab/add":

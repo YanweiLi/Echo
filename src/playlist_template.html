@@ -108,15 +108,37 @@
   .sent.active .txt { font-weight: 600; }
 
   .sents { max-height: max(240px, calc(100vh - 520px)); overflow-y: auto; }
-  .sent { display: flex; gap: 12px; padding: 11px 16px; cursor: pointer; border-bottom: 1px solid var(--line); transition: background .15s; }
+  .sent { display: flex; flex-wrap: wrap; gap: 12px; padding: 11px 16px; cursor: pointer; border-bottom: 1px solid var(--line); transition: background .15s; }
   .sent:last-child { border-bottom: none; }
   .sent:hover { background: #fbfaf7; }
   .sent .idx { color: var(--muted); font-size: 12px; min-width: 26px; text-align: right; padding-top: 3px; font-variant-numeric: tabular-nums; }
-  .sent .txt { font-family: var(--serif); font-size: 15.5px; }
+  .sent .txt { font-family: var(--serif); font-size: 15.5px; flex: 1; min-width: 0; }
   .sent.active { background: var(--accent-soft); }
   .sent.active .idx { color: var(--accent); font-weight: 700; }
   .sent.notready .txt { opacity: .38; }
   .sent.notready .idx { color: #d9d2c5; }
+
+  /* ---- 句中译：默认不显示，点击「译」才展开 ---- */
+  .zh-btn {
+    flex: none; align-self: flex-start; margin-top: 2px; padding: 0 7px;
+    font-size: 11px; line-height: 1.85; border-radius: 7px; color: var(--muted);
+    opacity: .5; transition: .15s;
+  }
+  .sent:hover .zh-btn { opacity: .9; }
+  .zh-btn:hover, .zh-btn.on { opacity: 1; border-color: var(--accent); color: var(--accent); }
+  .zh-btn.on { background: var(--accent-soft); }
+  .zh {
+    flex-basis: 100%; margin: 6px 0 0 38px; padding-left: 10px;
+    border-left: 2px solid var(--accent-soft);
+    font-size: 14.5px; line-height: 1.75; color: #5d574c;
+  }
+  .zh.err { color: var(--muted); font-size: 13px; }
+  .focus-zh {
+    margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line);
+    font-size: 18px; line-height: 1.75; color: #5d574c;
+  }
+  .focus-zh.hidden { display: none; }
+  .focus-zh.err { color: var(--muted); font-size: 14px; }
 
   .w { cursor: pointer; border-radius: 4px; padding: 0 1px; transition: background .12s; }
   .w:hover { background: #f3e6c8; }
@@ -244,9 +266,11 @@
     <div class="focus">
       <div class="focus-top">
         <div class="focus-label" id="focus-label"></div>
+        <button id="zh-toggle" class="zh-btn" title="显示本句中文翻译（快捷键 T）">译</button>
         <button id="mark-done" class="mark-btn" title="标记本篇学习完成">✓ 标记完成</button>
       </div>
       <div class="focus-text" id="focus-text"></div>
+      <div class="focus-zh hidden" id="focus-zh"></div>
       <div class="focus-meta" id="focus-meta"></div>
     </div>
     <div class="panel" style="margin-top:16px">
@@ -430,6 +454,67 @@ const POS = {
   n: "名词", v: "动词", adj: "形容词", adv: "副词",
   prep: "介词", conj: "连词", pron: "代词", interj: "感叹词", u: "",
 };
+
+// ---- 句子中译：默认不显示，点「译」才请求并展开（结果本地缓存）----
+const zhSentCache = {};
+
+async function fetchZhSentence(text) {
+  if (zhSentCache[text]) return zhSentCache[text];
+  let out = null;
+  try {
+    const r = await fetch(`/translate?text=${encodeURIComponent(text)}`, { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    out = await r.json();
+  } catch (e) {
+    out = await zhDirect(text);          // 静态模式兜底：直接用 MyMemory
+  }
+  if (out && out.ok) zhSentCache[text] = out;
+  return out || { ok: false, error: "翻译失败" };
+}
+
+async function zhDirect(text) {
+  try {
+    const url = "https://api.mymemory.translated.net/get?langpair=en|zh-CN&q=" +
+                encodeURIComponent(text.slice(0, 480));
+    const d = await (await fetch(url)).json();
+    const zh = d && d.responseData && d.responseData.translatedText;
+    return zh ? { ok: true, zh } : { ok: false, error: (d && d.responseDetails) || "翻译服务无响应" };
+  } catch (e) { return { ok: false, error: String(e) }; }
+}
+
+// 句子列表里那一行：点「译」展开 / 再点收起
+async function toggleSentenceZh(btn, text) {
+  const row = btn.closest(".sent");
+  const old = row.querySelector(".zh");
+  if (old) { old.remove(); btn.classList.remove("on"); return; }
+  btn.classList.add("on");
+  const box = document.createElement("div");
+  box.className = "zh";
+  box.textContent = "翻译中…";
+  row.appendChild(box);
+  const r = await fetchZhSentence(text);
+  box.textContent = r.ok ? r.zh : "（" + (r.error || "翻译失败") + "）";
+  if (!r.ok) box.classList.add("err");
+}
+
+// 焦点句（正在朗读）的译文
+let focusZhOn = false;
+async function toggleFocusZh(text) {
+  const box = $("focus-zh"), btn = $("zh-toggle");
+  if (focusZhOn) {
+    focusZhOn = false;
+    box.classList.add("hidden");
+    btn.classList.remove("on");
+    return;
+  }
+  focusZhOn = true;
+  btn.classList.add("on");
+  box.className = "focus-zh";
+  box.textContent = "翻译中…";
+  const r = await fetchZhSentence(text);
+  box.textContent = r.ok ? r.zh : "（" + (r.error || "翻译失败") + "）";
+  if (!r.ok) box.classList.add("focus-zh", "err");
+}
 
 function renderDef(defs, word) {
   $("lookup-ipa").textContent = "";
@@ -737,6 +822,7 @@ function renderSettings() {
       ${infoRow("数据目录", settings.data_dir)}
       ${infoRow("生词本", settings.vocab_file)}
       ${infoRow("学习进度", settings.progress_file)}
+      ${infoRow("句子中译缓存（" + (settings.translated_count || 0) + " 句）", settings.translations_file)}
       ${infoRow("产物目录", settings.dist_dir)}
       ${infoRow("项目根目录", settings.project_root)}
       <div class="set-add">
@@ -792,7 +878,7 @@ function renderPlaylist() {
 
 function renderArticle() {
   $("sents").innerHTML = art().sentences.map((s, i) =>
-    `<div class="sent" data-i="${i}"><span class="idx">${i + 1}</span><span class="txt">${wrapWords(s.text)}</span></div>`).join("");
+    `<div class="sent" data-i="${i}"><span class="idx">${i + 1}</span><span class="txt">${wrapWords(s.text)}</span><button class="zh-btn" data-zh="${i}" title="显示中文翻译">译</button></div>`).join("");
   $("vocab").innerHTML = (art().vocab || []).map(v =>
     `<div class="vocab-item" data-w="${esc(v.word)}">
        <div class="vw-line"><span class="vw-word">${esc(v.word)}</span><span class="vw-ipa">${esc(v.phonetic)}</span><span class="speaker">🔊</span></div>
@@ -814,6 +900,9 @@ function globalIndex() {
 
 function setActive(i) {
   idx = i;
+  focusZhOn = false;                     // 换句后收起上一句的译文
+  $("focus-zh").className = "focus-zh hidden";
+  $("zh-toggle").classList.remove("on");
   document.querySelectorAll(".sent").forEach((el, k) => el.classList.toggle("active", k === i));
   const cur = document.querySelector(".sent.active");
   if (cur) cur.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -888,6 +977,8 @@ $("pl-list").addEventListener("click", e => {
 });
 
 $("sents").addEventListener("click", e => {
+  const zb = e.target.closest(".zh-btn");
+  if (zb) { toggleSentenceZh(zb, art().sentences[parseInt(zb.dataset.zh, 10)].text); return; }
   const w = e.target.closest(".w");
   if (w) { lookupWord(w.dataset.w, w); return; }
   const row = e.target.closest(".sent");
@@ -934,6 +1025,7 @@ document.addEventListener("keydown", e => {
   if (e.code === "Space") { e.preventDefault(); togglePlay(); }
   else if (e.key === "ArrowLeft") prevSentence();
   else if (e.key === "ArrowRight") nextSentence();
+  else if (e.key === "t" || e.key === "T") toggleFocusZh(art().sentences[idx].text);
   else if (e.key === "Escape") $("lookup").classList.add("hidden");
 });
 
@@ -962,6 +1054,10 @@ $("lookup-save").addEventListener("click", () => {
             note: c.note, src: c.src, a: c.a, i: c.i });
   }
 });
+
+// ---- 句中译事件 ----
+$("zh-toggle").addEventListener("click", () =>
+  toggleFocusZh(art().sentences[idx].text));
 
 // ---- 学习进度事件 ----
 $("mark-done").addEventListener("click", async () => {
