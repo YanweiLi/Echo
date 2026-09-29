@@ -140,6 +140,42 @@
   .focus-zh.hidden { display: none; }
   .focus-zh.err { color: var(--muted); font-size: 14px; }
 
+  /* ---- AI 拆解抽屉（右侧，不遮住原文）---- */
+  .ai-drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 55;
+    width: min(560px, 92vw); display: flex; flex-direction: column;
+    background: var(--card); border-left: 1px solid var(--line);
+    box-shadow: -12px 0 40px rgba(28, 27, 24, .16);
+  }
+  .ai-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .ai-head h3 { margin: 0; font-size: 15px; flex: none; }
+  .ai-model { flex: 1; min-width: 0; color: var(--muted); font-size: 12px;
+              font-family: ui-monospace, Menlo, monospace;
+              overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ai-head button { font-size: 13px; padding: 5px 10px; }
+  .ai-sent { padding: 12px 16px; border-bottom: 1px solid var(--line);
+             background: #fcfaf6; cursor: pointer;
+             font-family: var(--serif); font-size: 15px; line-height: 1.7; }
+  .ai-body { flex: 1; overflow-y: auto; padding: 4px 16px 16px; }
+  .ai-sec { margin-top: 14px; }
+  .ai-sec-t { font-size: 12px; letter-spacing: .06em; color: var(--accent);
+              font-weight: 600; margin-bottom: 6px; }
+  .ai-body p { margin: 0 0 6px; font-size: 14.5px; line-height: 1.75; }
+  .ai-item { padding: 7px 0 7px 10px; border-left: 2px solid var(--accent-soft);
+             margin-bottom: 7px; font-size: 14.5px; line-height: 1.7; }
+  .ai-item b { color: #0b6e4f; font-weight: 600; }
+  .ai-ref { font-family: ui-monospace, Menlo, monospace; font-size: 13.5px; }
+  .ai-why { color: var(--muted); font-size: 13.5px; margin-top: 2px; }
+  .ai-tr { font-size: 15px; }
+  .ai-foot { padding: 10px 16px; border-top: 1px solid var(--line);
+             color: var(--muted); font-size: 12.5px;
+             display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ai-foot button { font-size: 13px; padding: 5px 10px; }
+  .ai-loading { color: var(--muted); font-size: 14px; padding: 22px 0; text-align: center; }
+  .ai-err { color: var(--accent); font-size: 14px; padding: 14px 0; line-height: 1.7; }
+  .ai-empty { color: var(--muted); font-size: 14px; padding: 10px 0; }
+  @media (max-width: 820px) { .ai-drawer { width: 100vw; border-left: none; } }
+
   .w { cursor: pointer; border-radius: 4px; padding: 0 1px; transition: background .12s; }
   .w:hover { background: #f3e6c8; }
   .w.active-lookup { background: #ffe08a; }
@@ -225,6 +261,10 @@
   /* ---- 设置页 ---- */
   .set-section { padding: 4px 0 14px; border-bottom: 1px solid var(--line); }
   .set-section:last-child { border-bottom: none; padding-bottom: 4px; }
+  .set-row input[type=text], .set-row input[type=password], .set-row select {
+    flex: 1; min-width: 0; font-family: inherit; font-size: 13px; padding: 6px 8px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink);
+  }
   .set-title { font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 8px; }
   .set-title .hint { font-weight: 400; }
   .set-list { display: flex; flex-direction: column; gap: 6px; }
@@ -267,6 +307,7 @@
       <div class="focus-top">
         <div class="focus-label" id="focus-label"></div>
         <button id="zh-toggle" class="zh-btn" title="显示本句中文翻译（快捷键 T）">译</button>
+        <button id="ai-open" class="zh-btn" title="AI 拆解这句（快捷键 E）">析</button>
         <button id="mark-done" class="mark-btn" title="标记本篇学习完成">✓ 标记完成</button>
       </div>
       <div class="focus-text" id="focus-text"></div>
@@ -329,6 +370,18 @@
     </section>
   </div>
 </div>
+
+<aside id="ai-drawer" class="ai-drawer hidden">
+  <div class="ai-head">
+    <h3>🔍 AI 拆解</h3>
+    <span class="ai-model" id="ai-model"></span>
+    <button id="ai-regen" title="重新生成（忽略缓存）">↻</button>
+    <button id="ai-close" title="关闭（Esc）">✕</button>
+  </div>
+  <div class="ai-sent" id="ai-sent" title="点击重听这句"></div>
+  <div class="ai-body" id="ai-body"></div>
+  <div class="ai-foot" id="ai-foot"></div>
+</aside>
 
 <div id="lookup" class="lookup hidden">
   <div class="lookup-head">
@@ -514,6 +567,99 @@ async function toggleFocusZh(text) {
   const r = await fetchZhSentence(text);
   box.textContent = r.ok ? r.zh : "（" + (r.error || "翻译失败") + "）";
   if (!r.ok) box.classList.add("focus-zh", "err");
+}
+
+// ---- AI 句子拆解（点击才请求；结果在服务端永久缓存）----
+let aiOpenIndex = null;
+let aiTimer = null;
+const escBr = s => esc(String(s == null ? "" : s)).replace(/\n/g, "<br>");
+
+function aiCtx(i) {
+  const ss = art().sentences;
+  return {
+    title: art().title || "",
+    prev: i > 0 ? (ss[i - 1] || {}).text || "" : "",
+    next: (ss[i + 1] || {}).text || "",
+  };
+}
+
+async function fetchExplain(text, ctx, force) {
+  const q = new URLSearchParams({
+    text, force: force ? "1" : "0",
+    title: ctx.title || "", prev: ctx.prev || "", next: ctx.next || "",
+  });
+  const r = await fetch("/explain?" + q.toString(), { cache: "no-store" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return await r.json();
+}
+
+function aiSec(title, inner) {
+  return inner ? `<div class="ai-sec"><div class="ai-sec-t">${title}</div>${inner}</div>` : "";
+}
+
+function renderExplain(res) {
+  $("ai-model").textContent = res.model || "";
+  if (!res.ok) {
+    $("ai-body").innerHTML = `<div class="ai-err">⚠️ ${escBr(res.error || "拆解失败")}</div>`;
+    $("ai-foot").innerHTML = res.need_config
+      ? '<button id="ai-gosetup">去设置 AI</button>'
+      : '<button id="ai-retry">重试</button>';
+    const g = $("ai-gosetup");
+    if (g) g.onclick = () => { closeAiDrawer(); openSettings(); };
+    const rt = $("ai-retry");
+    if (rt) rt.onclick = () => openAiDrawer(aiOpenIndex, true);
+    return;
+  }
+  const d = res.data || {};
+  const parts = [];
+  if (d.raw) parts.push(aiSec("拆解", `<p>${escBr(d.raw)}</p>`));
+  parts.push(aiSec("句子骨架", d.skeleton ? `<p>${escBr(d.skeleton)}</p>` : ""));
+  if (Array.isArray(d.grammar) && d.grammar.length) parts.push(aiSec("语法点",
+    d.grammar.map(g => `<div class="ai-item"><b>${esc(g.point || "")}</b><div>${escBr(g.explain || "")}</div></div>`).join("")));
+  if (Array.isArray(d.phrases) && d.phrases.length) parts.push(aiSec("难词与短语",
+    d.phrases.map(p => `<div class="ai-item"><b>${esc(p.text || "")}</b> ${esc(p.mean || "")}${p.why ? `<div class="ai-why">${escBr(p.why)}</div>` : ""}</div>`).join("")));
+  if (Array.isArray(d.reference) && d.reference.length) parts.push(aiSec("指代解析",
+    d.reference.map(r => `<div class="ai-item ai-ref"><b>${esc(r.word || "")}</b> → ${esc(r.refers || "")}</div>`).join("")));
+  parts.push(aiSec("地道翻译", d.translation ? `<p class="ai-tr">${escBr(d.translation)}</p>` : ""));
+  parts.push(aiSec("可仿写句型", d.pattern ? `<p>${escBr(d.pattern)}</p>` : ""));
+  $("ai-body").innerHTML = parts.join("") || '<div class="ai-empty">模型没有返回可显示的内容</div>';
+  $("ai-foot").innerHTML = (res.cached ? "✓ 来自本地缓存（未消耗额度）" : "✓ 已生成并缓存") +
+    '<button id="ai-regen2">重新生成</button>';
+  const rg = $("ai-regen2");
+  if (rg) rg.onclick = () => openAiDrawer(aiOpenIndex, true);
+}
+
+async function openAiDrawer(i, force) {
+  const s = art().sentences[i];
+  if (!s) return;
+  aiOpenIndex = i;
+  $("ai-sent").textContent = s.text;
+  $("ai-drawer").classList.remove("hidden");
+  $("ai-model").textContent = "";
+  $("ai-body").innerHTML =
+    '<div class="ai-loading">🤖 AI 正在拆解… 已用 <span id="ai-secs">0</span> 秒</div>';
+  $("ai-foot").innerHTML = "<span>首次拆解需联网（约 5–15 秒），结果会永久缓存</span>";
+  const t0 = Date.now();
+  clearInterval(aiTimer);
+  aiTimer = setInterval(() => {
+    const el = $("ai-secs");
+    if (el) el.textContent = Math.round((Date.now() - t0) / 1000);
+  }, 500);
+  let res;
+  try {
+    res = await fetchExplain(s.text, aiCtx(i), force);
+  } catch (e) {
+    res = { ok: false, error: "请求失败：" + e.message };
+  }
+  clearInterval(aiTimer);
+  if (aiOpenIndex !== i) return;        // 期间跳走了，不覆盖
+  renderExplain(res);
+}
+
+function closeAiDrawer() {
+  aiOpenIndex = null;
+  clearInterval(aiTimer);
+  $("ai-drawer").classList.add("hidden");
 }
 
 function renderDef(defs, word) {
@@ -840,6 +986,40 @@ function renderSettings() {
       </div>
       <div class="set-note">库内现有 <b>${settings.md_issues || 0} 期</b>；设为搜索路径后重启 Echo，
         即可按「期号 → 文章」两级浏览（顶栏出现期号下拉）。</div>
+    </div>
+    <div class="set-section">
+      <div class="set-title">🤖 AI 拆解 <span class="hint">（点句子右侧「析」让 AI 精讲）</span></div>
+      <div class="set-row">
+        <span class="set-label">厂商</span>
+        <select id="set-ai-provider">
+          ${(settings.ai_providers || []).map(p =>
+            `<option value="${esc(p.id)}"${p.id === settings.ai_provider ? " selected" : ""}>${esc(p.name)}</option>`).join("")}
+        </select>
+      </div>
+      <div class="set-row">
+        <span class="set-label">接口地址</span>
+        <input id="set-ai-base" type="text" placeholder="https://api.deepseek.com/v1" value="${esc(settings.ai_base_url || "")}" />
+      </div>
+      <div class="set-row">
+        <span class="set-label">模型</span>
+        <input id="set-ai-model" type="text" placeholder="deepseek-chat" value="${esc(settings.ai_model || "")}" />
+      </div>
+      <div class="set-row">
+        <span class="set-label">API Key</span>
+        <input id="set-ai-key" type="password" placeholder="${settings.ai_key_masked ? esc(settings.ai_key_masked) + "（留空=不修改）" : "尚未填写"}" />
+      </div>
+      <div class="set-add">
+        <button id="set-ai-save">保存</button>
+        <button id="set-ai-test">测试连接</button>
+        <button id="set-ai-clear">清空拆解缓存</button>
+      </div>
+      <div class="set-note" id="set-ai-note">
+        ${settings.ai_configured ? "✅ 已配置" : "⚠️ 尚未配置完整（接口地址 + 模型 + Key）"}
+        · 拆解缓存 <b>${settings.explain_count || 0}</b> 条
+        <span class="set-path">${esc(settings.explains_file || "")}</span>
+        <br>Key 只存在本机 <code>data/config.json</code>，不会上传到任何服务器；
+        AI 拆解按句按需调用，同一句只请求一次。
+      </div>
     </div>`;
 }
 
@@ -878,7 +1058,7 @@ function renderPlaylist() {
 
 function renderArticle() {
   $("sents").innerHTML = art().sentences.map((s, i) =>
-    `<div class="sent" data-i="${i}"><span class="idx">${i + 1}</span><span class="txt">${wrapWords(s.text)}</span><button class="zh-btn" data-zh="${i}" title="显示中文翻译">译</button></div>`).join("");
+    `<div class="sent" data-i="${i}"><span class="idx">${i + 1}</span><span class="txt">${wrapWords(s.text)}</span><button class="zh-btn" data-zh="${i}" title="显示中文翻译">译</button><button class="zh-btn ai-btn" data-ai="${i}" title="AI 拆解这句">析</button></div>`).join("");
   $("vocab").innerHTML = (art().vocab || []).map(v =>
     `<div class="vocab-item" data-w="${esc(v.word)}">
        <div class="vw-line"><span class="vw-word">${esc(v.word)}</span><span class="vw-ipa">${esc(v.phonetic)}</span><span class="speaker">🔊</span></div>
@@ -903,6 +1083,16 @@ function setActive(i) {
   focusZhOn = false;                     // 换句后收起上一句的译文
   $("focus-zh").className = "focus-zh hidden";
   $("zh-toggle").classList.remove("on");
+  if (aiOpenIndex !== null && aiOpenIndex !== i) {
+    // 抽屉开着但换了句：不自动拆解（避免消耗额度），只给一个按钮
+    aiOpenIndex = null;
+    clearInterval(aiTimer);
+    $("ai-body").innerHTML =
+      `<div class="ai-empty">已切到第 ${i + 1} 句（未自动拆解，避免消耗额度）</div>`;
+    $("ai-foot").innerHTML = `<button id="ai-now">拆解第 ${i + 1} 句</button>`;
+    const b = $("ai-now");
+    if (b) b.onclick = () => openAiDrawer(idx);
+  }
   document.querySelectorAll(".sent").forEach((el, k) => el.classList.toggle("active", k === i));
   const cur = document.querySelector(".sent.active");
   if (cur) cur.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -977,7 +1167,9 @@ $("pl-list").addEventListener("click", e => {
 });
 
 $("sents").addEventListener("click", e => {
-  const zb = e.target.closest(".zh-btn");
+  const ab = e.target.closest(".ai-btn");
+  if (ab) { openAiDrawer(parseInt(ab.dataset.ai, 10)); return; }
+  const zb = e.target.closest(".zh-btn[data-zh]");
   if (zb) { toggleSentenceZh(zb, art().sentences[parseInt(zb.dataset.zh, 10)].text); return; }
   const w = e.target.closest(".w");
   if (w) { lookupWord(w.dataset.w, w); return; }
@@ -1026,7 +1218,11 @@ document.addEventListener("keydown", e => {
   else if (e.key === "ArrowLeft") prevSentence();
   else if (e.key === "ArrowRight") nextSentence();
   else if (e.key === "t" || e.key === "T") toggleFocusZh(art().sentences[idx].text);
-  else if (e.key === "Escape") $("lookup").classList.add("hidden");
+  else if (e.key === "e" || e.key === "E") openAiDrawer(idx);
+  else if (e.key === "Escape") {
+    $("lookup").classList.add("hidden");
+    closeAiDrawer();
+  }
 });
 
 // ---- 生词本事件 ----
@@ -1058,6 +1254,24 @@ $("lookup-save").addEventListener("click", () => {
 // ---- 句中译事件 ----
 $("zh-toggle").addEventListener("click", () =>
   toggleFocusZh(art().sentences[idx].text));
+
+// ---- AI 拆解事件 ----
+$("ai-open").addEventListener("click", () => openAiDrawer(idx));
+// 设置页：换厂商时自动填接口地址与推荐模型
+$("set-body").addEventListener("change", e => {
+  if (e.target.id !== "set-ai-provider") return;
+  const p = ((settings && settings.ai_providers) || []).find(x => x.id === e.target.value);
+  if (!p) return;
+  $("set-ai-base").value = p.base_url;
+  $("set-ai-model").value = p.model;
+});
+$("ai-close").addEventListener("click", closeAiDrawer);
+$("ai-regen").addEventListener("click", () => {
+  if (aiOpenIndex !== null) openAiDrawer(aiOpenIndex, true);
+});
+$("ai-sent").addEventListener("click", () => {
+  if (aiOpenIndex !== null) play(aiOpenIndex);
+});
 
 // ---- 学习进度事件 ----
 $("mark-done").addEventListener("click", async () => {
@@ -1105,6 +1319,40 @@ $("set-body").addEventListener("click", async e => {
     await setLoad();
     renderSettings();
     alert("已设为默认搜索路径，重启 Echo 生效。");
+    return;
+  }
+  if (e.target.id === "set-ai-save") {
+    const r = await setPost("/ai/settings", {
+      provider: $("set-ai-provider").value,
+      base_url: $("set-ai-base").value.trim(),
+      model: $("set-ai-model").value.trim(),
+      api_key: $("set-ai-key").value.trim(),   // 空 = 不修改
+    });
+    if (!r.ok) { alert("保存失败：" + (r.error || "")); return; }
+    $("set-ai-key").value = "";
+    await setLoad();
+    renderSettings();
+    alert(r.configured ? "已保存。建议点「测试连接」验证一下。" : "已保存，但配置还不完整（地址 + 模型 + Key）。");
+    return;
+  }
+  if (e.target.id === "set-ai-test") {
+    const btn = e.target;
+    const old = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "测试中…";
+    const r = await setPost("/ai/test", {});
+    btn.disabled = false;
+    btn.textContent = old;
+    $("set-ai-note").innerHTML = r.ok
+      ? `✅ 连接正常 · 模型 <b>${esc(r.model)}</b> · ${r.ms} ms · 回执「${esc(r.reply || "")}」`
+      : `❌ ${esc(r.error || "测试失败")}`;
+    return;
+  }
+  if (e.target.id === "set-ai-clear") {
+    if (!confirm("确定清空 AI 拆解缓存？下次需重新生成（会消耗额度）。")) return;
+    await setPost("/ai/clear_cache", {});
+    await setLoad();
+    renderSettings();
     return;
   }
   if (e.target.id === "set-datadir" || e.target.id === "set-datadir-reset") {

@@ -27,6 +27,8 @@ import socket
 import subprocess
 import sys
 import threading
+import time
+import urllib.error
 import urllib.request
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -86,6 +88,7 @@ CONFIG_FILE = DATA_DIR / "config.json"          # 搜索路径
 VOCAB_FILE = DATA_DIR / "vocab.json"            # 生词本
 PROGRESS_FILE = DATA_DIR / "progress.json"      # 学习进度
 TRANSLATIONS_FILE = DATA_DIR / "translations.json"  # 句子中译缓存
+EXPLAINS_FILE = DATA_DIR / "explains.json"          # AI 句子拆解缓存
 try:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 except OSError:
@@ -95,7 +98,7 @@ except OSError:
 def set_data_dir(new_dir):
     """更改数据目录（传空字符串则恢复默认），并刷新全局路径。"""
     global DATA_DIR, CONFIG_FILE, VOCAB_FILE, PROGRESS_FILE, TRANSLATIONS_FILE
-    global _TR_CACHE
+    global EXPLAINS_FILE
     cfg = load_bootstrap()
     new_dir = (new_dir or "").strip()
     if new_dir:
@@ -108,7 +111,12 @@ def set_data_dir(new_dir):
     VOCAB_FILE = DATA_DIR / "vocab.json"
     PROGRESS_FILE = DATA_DIR / "progress.json"
     TRANSLATIONS_FILE = DATA_DIR / "translations.json"
-    _TR_CACHE = None          # 换了数据目录，中译缓存要重新加载
+    EXPLAINS_FILE = DATA_DIR / "explains.json"
+    # 缓存对象换到新目录并重新加载
+    TR_CACHE.path = TRANSLATIONS_FILE
+    EXPLAIN_CACHE.path = EXPLAINS_FILE
+    TR_CACHE.reset()
+    EXPLAIN_CACHE.reset()
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
     except OSError:
@@ -183,7 +191,15 @@ def settings_payload():
         "vocab_file": str(VOCAB_FILE),
         "progress_file": str(PROGRESS_FILE),
         "translations_file": str(TRANSLATIONS_FILE),
-        "translated_count": len(load_translations()),
+        "translated_count": len(TR_CACHE),
+        "explains_file": str(EXPLAINS_FILE),
+        "explain_count": len(EXPLAIN_CACHE),
+        "ai_provider": ai_config()["provider"],
+        "ai_base_url": ai_config()["base_url"],
+        "ai_model": ai_config()["model"],
+        "ai_key_masked": mask_key(ai_config()["api_key"]),
+        "ai_configured": ai_configured(),
+        "ai_providers": AI_PROVIDERS,
         "bootstrap_file": str(BOOTSTRAP_FILE),
         "search_dirs": get_search_dirs(),
     }
@@ -234,31 +250,75 @@ def reveal_path(p):
     return {"ok": True}
 
 
-# ---- 句子中译：按需翻译 + 本地永久缓存（同一句只翻一次，不浪费接口额度）----
-_TR_CACHE = None          # 句 hash -> 中文（惰性加载，进程内复用）
-_TR_LOCK = threading.Lock()
+# ---- 按需缓存：惰性加载 + 原子落盘 + 线程安全（中译 / AI 拆解共用）----
+class JsonCache:
+    """一个 JSON 字典缓存（键 → 值），带条数上限与原子落盘。"""
+
+    def __init__(self, path, limit=100000, trim=0.25):
+        self.path = Path(path)
+        self.limit = limit
+        self.trim = trim
+        self._data = None
+        self._lock = threading.Lock()
+
+    def _load(self):
+        if self._data is None:
+            try:
+                raw = json.loads(self.path.read_text(encoding="utf-8"))
+                self._data = raw if isinstance(raw, dict) else {}
+            except Exception:  # noqa: BLE001
+                self._data = {}
+        return self._data
+
+    def reset(self):
+        with self._lock:
+            self._data = None
+
+    def get(self, key):
+        with self._lock:
+            return self._load().get(key)
+
+    def all(self):
+        with self._lock:
+            return self._load()
+
+    def put(self, key, value):
+        with self._lock:
+            data = self._load()
+            data[key] = value
+            if self.limit and len(data) > self.limit:
+                for k in list(data)[:max(1, int(self.limit * self.trim))]:
+                    data.pop(k, None)
+            self._save(data)
+        return value
+
+    def clear(self):
+        with self._lock:
+            self._data = {}
+            self._save(self._data)
+
+    def _save(self, data):
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.path.with_name(self.path.name + ".part")
+            tmp.write_text(json.dumps(data, ensure_ascii=False) + "\n",
+                           encoding="utf-8")
+            tmp.replace(self.path)      # 原子落盘，避免半成品被读取
+        except OSError:
+            pass
+
+    def __len__(self):
+        with self._lock:
+            return len(self._load())
+
+
+TR_CACHE = JsonCache(TRANSLATIONS_FILE, limit=100000)
+EXPLAIN_CACHE = JsonCache(EXPLAINS_FILE, limit=5000)
 
 
 def load_translations():
-    global _TR_CACHE
-    if _TR_CACHE is None:
-        try:
-            data = json.loads(TRANSLATIONS_FILE.read_text(encoding="utf-8"))
-            _TR_CACHE = data if isinstance(data, dict) else {}
-        except Exception:  # noqa: BLE001
-            _TR_CACHE = {}
-    return _TR_CACHE
-
-
-def _save_translations():
-    try:
-        TRANSLATIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        tmp = TRANSLATIONS_FILE.with_name(TRANSLATIONS_FILE.name + ".part")
-        tmp.write_text(json.dumps(_TR_CACHE, ensure_ascii=False) + "\n",
-                       encoding="utf-8")
-        tmp.replace(TRANSLATIONS_FILE)   # 原子落盘
-    except OSError:
-        pass
+    """中译缓存（只读，设置页统计用）。"""
+    return TR_CACHE.all()
 
 
 def _tr_key(text):
@@ -309,22 +369,257 @@ def translate_sentence(text):
     if not text:
         return {"ok": False, "error": "文本为空"}
     key = _tr_key(text)
-    with _TR_LOCK:
-        hit = load_translations().get(key)
+    hit = TR_CACHE.get(key)
     if hit:
         return {"ok": True, "zh": hit, "cached": True}
     try:
         zh = " ".join(_mt_piece(p) for p in _chunk_text(text))
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": str(e)}
-    with _TR_LOCK:
-        cache = load_translations()
-        cache[key] = zh
-        if len(cache) > 100000:            # 防无限膨胀：丢弃最早写入的 1/4
-            for k in list(cache)[:25000]:
-                cache.pop(k, None)
-        _save_translations()
+    TR_CACHE.put(key, zh)
     return {"ok": True, "zh": zh, "cached": False}
+
+
+# ---- AI 句子拆解（OpenAI 兼容接口 + 本地永久缓存）----
+PROMPT_VERSION = "e1"      # 改提示词后调大，旧缓存自动失效
+
+AI_PROVIDERS = [
+    {"id": "deepseek", "name": "DeepSeek", "base_url": "https://api.deepseek.com/v1",
+     "model": "deepseek-chat"},
+    {"id": "zhipu", "name": "智谱 GLM", "base_url": "https://open.bigmodel.cn/api/paas/v4",
+     "model": "glm-4-flash"},
+    {"id": "moonshot", "name": "Kimi（Moonshot）", "base_url": "https://api.moonshot.cn/v1",
+     "model": "moonshot-v1-8k"},
+    {"id": "dashscope", "name": "通义千问（DashScope 兼容模式）",
+     "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+     "model": "qwen-plus"},
+    {"id": "siliconflow", "name": "硅基流动 SiliconFlow",
+     "base_url": "https://api.siliconflow.cn/v1",
+     "model": "Qwen/Qwen2.5-7B-Instruct"},
+    {"id": "ollama", "name": "本机 Ollama（离线）", "base_url": "http://127.0.0.1:11434/v1",
+     "model": "qwen2.5:7b"},
+    {"id": "custom", "name": "自定义", "base_url": "", "model": ""},
+]
+
+EXPLAIN_KEYS = ("skeleton", "grammar", "phrases", "reference", "translation", "pattern")
+
+EXPLAIN_SYSTEM = (
+    "你是一位面向中文母语者的英语精读老师，学生正在读《经济学人》。"
+    "讲解要短、准、有用：说清「作者为什么这样写」，而不是罗列词典义。"
+    "只输出 JSON 对象，不要任何解释文字、不要代码块标记。"
+)
+
+
+def ai_config():
+    cfg = load_config()
+    return {
+        "provider": str(cfg.get("ai_provider") or "deepseek"),
+        "base_url": str(cfg.get("ai_base_url") or "").strip().rstrip("/"),
+        "api_key": str(cfg.get("ai_api_key") or "").strip(),
+        "model": str(cfg.get("ai_model") or "").strip(),
+    }
+
+
+def ai_configured():
+    c = ai_config()
+    return bool(c["base_url"] and c["model"])
+
+
+def mask_key(k):
+    """只回打码后的 Key，前端永远拿不到明文。"""
+    k = str(k or "")
+    if not k:
+        return ""
+    return (k[:5] + "…" + k[-4:]) if len(k) > 12 else "…" + k[-4:]
+
+
+def _ai_chat(messages, json_mode=True, timeout=90, max_tokens=1400):
+    """调 OpenAI 兼容的 /chat/completions（国内厂商 + Ollama 通吃）。"""
+    c = ai_config()
+    if not c["base_url"] or not c["model"]:
+        raise RuntimeError("未配置 AI：请在设置页填写接口地址与模型名")
+    payload = {"model": c["model"], "messages": messages, "temperature": 0.2,
+               "max_tokens": max_tokens, "stream": False}
+    if json_mode:
+        payload["response_format"] = {"type": "json_object"}
+    headers = {"Content-Type": "application/json", "User-Agent": "Echo/1.0"}
+    if c["api_key"]:
+        headers["Authorization"] = "Bearer " + c["api_key"]
+    req = urllib.request.Request(c["base_url"] + "/chat/completions",
+                                 data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+                                 headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            body = json.loads(r.read().decode("utf-8", "ignore"))
+    except urllib.error.HTTPError as e:
+        detail = ""
+        try:
+            detail = str(((json.loads(e.read().decode("utf-8", "ignore")) or {})
+                          .get("error") or {}).get("message") or "")[:160]
+        except Exception:  # noqa: BLE001
+            pass
+        if e.code in (401, 403):
+            raise RuntimeError("API Key 无效或没有权限" + (f"：{detail}" if detail else ""))
+        if e.code == 404:
+            raise RuntimeError("接口地址不对（404），检查 base_url 是否以 /v1 结尾")
+        if e.code in (402, 429):
+            raise RuntimeError("额度不足或请求过于频繁" + (f"：{detail}" if detail else ""))
+        raise RuntimeError(f"接口返回 {e.code}" + (f"：{detail}" if detail else ""))
+    except urllib.error.URLError as e:
+        if isinstance(getattr(e, "reason", None), socket.timeout):
+            raise RuntimeError("请求超时（模型响应太慢）")
+        raise RuntimeError(f"连不上接口：{getattr(e, 'reason', e)}")
+    except socket.timeout:
+        raise RuntimeError("请求超时（模型响应太慢）")
+    choices = body.get("choices") or []
+    if not choices:
+        raise RuntimeError("接口返回里没有 choices 内容")
+    return str((choices[0].get("message") or {}).get("content") or "").strip()
+
+
+def _explain_messages(sentence, ctx):
+    """带上下文提问：单句孤立时指代、语气根本没法讲。"""
+    ctx = ctx or {}
+    lines = [f"标题：{ctx.get('title') or '（无）'}"]
+    if ctx.get("section"):
+        lines.append(f"栏目：{ctx['section']}")
+    if ctx.get("prev"):
+        lines.append(f"上一句：{ctx['prev']}")
+    lines.append(f"【要拆解的句子】{sentence}")
+    if ctx.get("next"):
+        lines.append(f"下一句：{ctx['next']}")
+    user = "\n".join(lines) + "\n\n" + (
+        "请拆解【要拆解的句子】，输出严格 JSON（六个字段）：\n"
+        "{\n"
+        '  "skeleton": "句子骨架：主干（主谓宾/表）+ 各从句与修饰成分的层次，中文说明，必要时保留英文关键词",\n'
+        '  "grammar": [{"point": "语法点名，如 虚拟语气/倒装/分词独立结构/省略/长定语后置",'
+        ' "explain": "这里为什么这样用、对意思有什么影响"}],\n'
+        '  "phrases": [{"text": "词或短语", "mean": "在本句中的意思",'
+        ' "why": "为什么用这个词：语气/搭配/言外之意"}],\n'
+        '  "reference": [{"word": "it/they/this/that 等", "refers": "具体指谁或什么（用英文原词）"}],\n'
+        '  "translation": "地道中文翻译，不要逐字直译",\n'
+        '  "pattern": "可仿写的句型模板（英文）+ 一句中文说明怎么用"\n'
+        "}\n"
+        "规则：grammar / phrases / reference 若本句没有就返回空数组；每项说明不超过 2 句；"
+        "reference 必须指名（例：it → the affordability crisis）；句子有歧义时只给最合理的一种解读。"
+    )
+    return [{"role": "system", "content": EXPLAIN_SYSTEM},
+            {"role": "user", "content": user}]
+
+
+def _parse_explain(raw):
+    """把模型输出解析成六段结构；解析失败时退回纯文本。"""
+    text = str(raw or "").strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```[a-zA-Z]*\s*", "", text)
+        text = re.sub(r"\s*```$", "", text).strip()
+    data = None
+    try:
+        data = json.loads(text)
+    except Exception:  # noqa: BLE001
+        m = re.search(r"\{.*\}", text, re.S)
+        if m:
+            try:
+                data = json.loads(m.group(0))
+            except Exception:  # noqa: BLE001
+                data = None
+    if not isinstance(data, dict):
+        return {"raw": text or "（模型没有返回内容）"}
+    out = {}
+    for k in EXPLAIN_KEYS:
+        v = data.get(k)
+        if k in ("grammar", "phrases", "reference"):
+            out[k] = [x for x in v if isinstance(x, dict)] if isinstance(v, list) else []
+        else:
+            out[k] = str(v or "").strip()
+    if not any(out.values()):
+        out["raw"] = text
+    return out
+
+
+_EXPLAIN_LOCK = threading.Lock()
+_EXPLAIN_KEY_LOCKS = {}
+
+
+def _explain_key_lock(key):
+    """同一句的并发请求串行化：第二个请求等到第一个写进缓存后直接命中。"""
+    with _EXPLAIN_LOCK:
+        if len(_EXPLAIN_KEY_LOCKS) > 2000:
+            _EXPLAIN_KEY_LOCKS.clear()
+        lk = _EXPLAIN_KEY_LOCKS.get(key)
+        if lk is None:
+            lk = threading.Lock()
+            _EXPLAIN_KEY_LOCKS[key] = lk
+        return lk
+
+
+def explain_sentence(sentence, ctx=None, force=False):
+    """按需拆解一句：先查缓存；未命中才调 AI（同句并发只调一次）。"""
+    sentence = re.sub(r"\s+", " ", str(sentence or "")).strip()
+    if not sentence:
+        return {"ok": False, "error": "文本为空"}
+    ctx = ctx or {}
+    c = ai_config()
+    ctx_brief = " | ".join(str(ctx.get(k) or "") for k in ("title", "section", "prev", "next"))
+    key = hashlib.sha1("\u0000".join(
+        [sentence, ctx_brief, PROMPT_VERSION, c["model"]]).encode("utf-8")).hexdigest()[:16]
+
+    if not force:
+        hit = EXPLAIN_CACHE.get(key)
+        if hit:
+            return {"ok": True, "cached": True, "model": hit.get("model", ""),
+                    "data": hit.get("data")}
+    if not ai_configured():
+        return {"ok": False, "need_config": True,
+                "error": "未配置 AI：请在设置页选择厂并填写 API Key 与模型名"}
+
+    with _explain_key_lock(key):
+        hit = EXPLAIN_CACHE.get(key)          # 双重检查：并发时第二个直接命中
+        if hit and not force:
+            return {"ok": True, "cached": True, "model": hit.get("model", ""),
+                    "data": hit.get("data")}
+        try:
+            raw = _ai_chat(_explain_messages(sentence, ctx))
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": str(e)}
+        data = _parse_explain(raw)
+        EXPLAIN_CACHE.put(key, {"at": datetime.now().isoformat(timespec="seconds"),
+                                "model": c["model"], "data": data})
+        return {"ok": True, "cached": False, "model": c["model"], "data": data}
+
+
+def save_ai_settings(body):
+    """保存 AI 配置；api_key 传空字符串表示「保持原值不变」。"""
+    body = body or {}
+    cfg = load_config()
+    for src, dst in (("provider", "ai_provider"), ("base_url", "ai_base_url"),
+                     ("model", "ai_model")):
+        v = body.get(src)
+        if isinstance(v, str) and v.strip():
+            cfg[dst] = v.strip()
+    if isinstance(body.get("api_key"), str) and body["api_key"].strip():
+        cfg["ai_api_key"] = body["api_key"].strip()
+    if body.get("clear_key"):
+        cfg.pop("ai_api_key", None)
+    _save_config(cfg)
+    c = ai_config()
+    return {"ok": True, "configured": ai_configured(), "provider": c["provider"],
+            "base_url": c["base_url"], "model": c["model"],
+            "key_masked": mask_key(c["api_key"])}
+
+
+def ai_test():
+    """用最小请求验证 Key / 地址 / 模型是否可用。"""
+    if not ai_configured():
+        return {"ok": False, "error": "请先填写接口地址与模型名"}
+    t0 = time.time()
+    try:
+        out = _ai_chat([{"role": "user", "content": "Reply with exactly: ok"}],
+                       json_mode=False, timeout=40, max_tokens=24)
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": str(e)}
+    return {"ok": True, "ms": int((time.time() - t0) * 1000),
+            "model": ai_config()["model"], "reply": out[:60]}
 
 
 # ---- 生词本（服务模式存文件，静态模式存浏览器 localStorage）----
@@ -1041,6 +1336,26 @@ def make_handler(page_html, lib, engine, status_payload, on_issue_loaded=None):
             elif path == "/translate":
                 self._json_out(translate_sentence(
                     parse_qs(parsed.query).get("text", [""])[0]))
+            elif path == "/explain":
+                q = parse_qs(parsed.query)
+                ctx = {k: q.get(k, [""])[0] for k in ("title", "section", "prev", "next")}
+                self._json_out(explain_sentence(q.get("text", [""])[0], ctx,
+                                                q.get("force", ["0"])[0] == "1"))
+            elif path == "/ai/status":
+                c = ai_config()
+                self._json_out({"configured": ai_configured(), "provider": c["provider"],
+                                "base_url": c["base_url"], "model": c["model"],
+                                "key_masked": mask_key(c["api_key"]),
+                                "providers": AI_PROVIDERS,
+                                "explains_file": str(EXPLAINS_FILE),
+                                "explain_count": len(EXPLAIN_CACHE)})
+            elif path == "/ai/settings":
+                self._json_out(save_ai_settings(self._read_json()))
+            elif path == "/ai/test":
+                self._json_out(ai_test())
+            elif path == "/ai/clear_cache":
+                EXPLAIN_CACHE.clear()
+                self._json_out({"ok": True, "explain_count": 0})
             elif path == "/vocab":
                 self._json_out({"items": load_vocab()})
             elif path == "/vocab/add":
