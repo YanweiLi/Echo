@@ -983,6 +983,14 @@ def issue_status(arts):
     return {"total": tot, "ready": rdy, "done": tot > 0 and rdy >= tot, "articles": rows}
 
 
+def issue_sort_key(issue_id):
+    """期号排序键：te_2026.01.03 → (1, (2026, 1, 3), "te_2026.01.03")，认不出的归零。"""
+    m = re.search(r"(\d{4})\D+(\d{1,2})\D+(\d{1,2})", str(issue_id or ""))
+    if m:
+        return (1, tuple(int(g) for g in m.groups()), str(issue_id))
+    return (0, (0, 0, 0), str(issue_id))
+
+
 class Library:
     """多期目录：含子目录且子目录里有 md 时，按子目录分期。"""
 
@@ -1015,6 +1023,8 @@ class Library:
                         groups.append((d.name, mds))
         if not groups or not groups[0][1]:
             sys.exit(f"在目录里没有找到 md 文件：{self.root}")
+        # 期号倒序：最新的一期排在最前（也决定默认打开哪一期）
+        groups.sort(key=lambda g: issue_sort_key(g[0]), reverse=True)
         for iid, mds in groups:
             bucket = []
             for md in mds:
