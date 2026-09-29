@@ -1,0 +1,14 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# 产物：音频缓存与生成的页面
+dist/
+*.part
+
+# 个人数据：搜索路径 / 生词本 / 学习进度
+data/
+
+# macOS
+.DS_Store

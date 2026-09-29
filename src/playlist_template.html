@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Echo · 播放列表</title>
+<style>
+  :root {
+    --bg: #f7f5f1;
+    --card: #ffffff;
+    --ink: #1c1b18;
+    --muted: #8a857a;
+    --accent: #c0392b;
+    --accent-soft: #fbeae7;
+    --line: #e8e4dc;
+    --serif: Georgia, "Times New Roman", "Songti SC", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.6;
+  }
+
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(247, 245, 241, .86); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line); padding: 12px 20px;
+  }
+  .bar {
+    max-width: 1280px; margin: 0 auto;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .title { font-family: var(--serif); font-size: 17px; font-weight: 700; white-space: nowrap; }
+  .controls { display: flex; align-items: center; gap: 8px; }
+  button {
+    font-family: inherit; cursor: pointer; border: 1px solid var(--line);
+    background: var(--card); color: var(--ink); border-radius: 10px;
+    padding: 7px 12px; font-size: 14px; transition: .15s;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); min-width: 52px; font-size: 16px; }
+  button.primary:hover { filter: brightness(1.08); color: #fff; }
+  button.toggle-on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+  select {
+    font-family: inherit; font-size: 14px; padding: 6px 8px;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink);
+  }
+  .meta { color: var(--muted); font-size: 13px; }
+  .progress-track { flex-basis: 100%; height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; width: 0%; background: var(--accent); transition: width .2s linear; }
+
+  .layout {
+    max-width: 1280px; margin: 20px auto 60px; padding: 0 20px;
+    display: grid; grid-template-columns: 250px minmax(0, 1fr) 270px; gap: 18px; align-items: start;
+  }
+  @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: 0 2px 10px rgba(28,27,24,.04); }
+  .panel-head { padding: 12px 16px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); }
+
+  /* 播放列表 */
+  .pl-list { max-height: 72vh; overflow-y: auto; }
+  .pl-item {
+    display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer;
+    border-bottom: 1px solid var(--line); transition: background .15s;
+  }
+  .pl-item:last-child { border-bottom: none; }
+  .pl-item:hover { background: #fbfaf7; }
+  .pl-item.active { background: var(--accent-soft); }
+  .pl-idx { color: var(--muted); font-size: 12px; min-width: 20px; font-variant-numeric: tabular-nums; }
+  .pl-item.active .pl-idx { color: var(--accent); font-weight: 700; }
+  .pl-label { font-size: 14px; flex: 1; }
+  .pl-n { color: var(--muted); font-size: 12px; }
+
+  /* 焦点句 */
+  .focus { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px 24px; box-shadow: 0 2px 10px rgba(28,27,24,.04); }
+  .focus-label { color: var(--accent); font-size: 12px; letter-spacing: .06em; margin-bottom: 8px; }
+  .focus-text { font-family: var(--serif); font-size: 22px; line-height: 1.7; }
+  .focus-meta { margin-top: 10px; color: var(--muted); font-size: 13px; }
+
+  .sents { max-height: 64vh; overflow-y: auto; }
+  .sent { display: flex; gap: 12px; padding: 11px 16px; cursor: pointer; border-bottom: 1px solid var(--line); transition: background .15s; }
+  .sent:last-child { border-bottom: none; }
+  .sent:hover { background: #fbfaf7; }
+  .sent .idx { color: var(--muted); font-size: 12px; min-width: 26px; text-align: right; padding-top: 3px; font-variant-numeric: tabular-nums; }
+  .sent .txt { font-family: var(--serif); font-size: 15.5px; }
+  .sent.active { background: var(--accent-soft); }
+  .sent.active .idx { color: var(--accent); font-weight: 700; }
+  .sent.notready .txt { opacity: .38; }
+  .sent.notready .idx { color: #d9d2c5; }
+
+  .w { cursor: pointer; border-radius: 4px; padding: 0 1px; transition: background .12s; }
+  .w:hover { background: #f3e6c8; }
+  .w.active-lookup { background: #ffe08a; }
+  .vw { color: var(--accent); font-weight: 600; border-bottom: 1px dotted rgba(192,57,43,.5); }
+  .vw.w { cursor: pointer; }
+
+  .vocab-col { position: sticky; top: 86px; display: flex; flex-direction: column; gap: 16px; }
+  .vocab-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .vocab-head h3 { margin: 0; font-size: 14px; }
+  .vocab-list { max-height: 58vh; overflow-y: auto; }
+  .vocab-item { padding: 10px 16px; border-bottom: 1px solid var(--line); cursor: pointer; transition: background .15s; }
+  .vocab-item:hover { background: #fbfaf7; }
+  .vocab-item:last-child { border-bottom: none; }
+  .vw-line { display: flex; align-items: baseline; gap: 8px; }
+  .vw-word { font-family: var(--serif); font-size: 17px; font-weight: 700; }
+  .vw-ipa { color: var(--muted); font-size: 13px; }
+  .vw-mean { font-size: 13.5px; margin-top: 2px; }
+  .vw-ex { color: var(--muted); font-size: 12.5px; font-style: italic; margin-top: 2px; }
+  .speaker { color: var(--accent); font-size: 13px; margin-left: auto; }
+
+  .hint { color: var(--muted); font-size: 12px; }
+  kbd { background: var(--card); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; font-size: 11px; }
+
+  .hidden { display: none !important; }
+  .lookup {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    width: min(420px, calc(100vw - 24px)); max-height: 48vh; overflow: auto;
+    background: #fffdf8; border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(28,27,24,.16); z-index: 50; padding: 12px 16px;
+  }
+  .lookup-head { display: flex; align-items: baseline; gap: 10px; }
+  .lookup-word { font-family: var(--serif); font-size: 21px; font-weight: 700; }
+  .lookup-ipa { color: var(--muted); font-size: 13px; }
+  .lookup-btn { border: none; background: none; cursor: pointer; font-size: 15px; color: var(--accent); padding: 2px 6px; }
+  .lookup-zh { margin-top: 6px; font-size: 15px; color: #0b6e4f; font-weight: 500; }
+  .lookup-pos { font-style: italic; color: var(--accent); font-size: 13px; margin: 8px 0 2px; }
+  .lookup-def { font-size: 14px; margin-top: 2px; }
+  .lookup-ex { color: var(--muted); font-size: 13px; font-style: italic; margin-top: 2px; }
+  .lookup-loading { color: var(--muted); font-size: 14px; }
+
+  /* ---- 生词本 ---- */
+  #vn-count { font-size: 12px; }
+  #lookup-save { font-size: 13px; }
+  .lookup-btn.toggle-on { background: var(--accent-soft); border-radius: 8px; color: var(--accent); }
+  .vn-modal {
+    position: fixed; inset: 0; background: rgba(28,27,24,.35); z-index: 60;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .vn-panel {
+    width: min(560px, calc(100vw - 32px)); max-height: 76vh; display: flex; flex-direction: column;
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    box-shadow: 0 16px 48px rgba(28,27,24,.28); overflow: hidden;
+  }
+  .vn-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .vn-head h3 { margin: 0; font-size: 15px; flex: 1; }
+  .vn-head button { font-size: 13px; padding: 5px 10px; }
+  .vn-list { overflow-y: auto; padding: 4px 0; }
+  .vn-item { padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  .vn-item:last-child { border-bottom: none; }
+  .vn-line { display: flex; align-items: baseline; gap: 8px; }
+  .vn-word { font-family: var(--serif); font-size: 17px; font-weight: 700; }
+  .vn-zh { color: #0b6e4f; font-size: 13.5px; }
+  .vn-btn { border: none; background: none; cursor: pointer; font-size: 14px; padding: 2px 4px; color: var(--muted); }
+  .vn-btn:hover { color: var(--accent); }
+  .vn-btn[data-act="del"] { margin-left: auto; }
+  .vn-en { font-size: 13px; margin-top: 3px; }
+  .vn-note { font-size: 12.5px; color: var(--muted); font-style: italic; margin-top: 3px; }
+  .vn-empty { padding: 28px 16px; text-align: center; color: var(--muted); font-size: 14px; }
+
+  /* ---- 学习进度（标记完成）---- */
+  .pl-item.done .pl-label { color: var(--muted); }
+  .pl-item.done .pl-idx { color: #2e7d32; font-weight: 700; }
+  .focus-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .focus-top .focus-label { margin-bottom: 0; flex: 1; }
+  .mark-btn {
+    border: 1px solid var(--line); background: var(--card); color: var(--muted);
+    border-radius: 10px; padding: 5px 12px; font-size: 13px; cursor: pointer; font-family: inherit;
+    white-space: nowrap;
+  }
+  .mark-btn:hover { border-color: #2e7d32; color: #2e7d32; }
+  .mark-btn.done { background: #e8f5e9; border-color: #2e7d32; color: #2e7d32; font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="title">🎧 Echo · 英语学习播放列表</div>
+    <div class="controls">
+      <button id="prev" title="上一句 (←)">⏮</button>
+      <button id="play" class="primary" title="播放/暂停 (空格)">▶</button>
+      <button id="next" title="下一句 (→)">⏭</button>
+      <select id="speed" title="语速">
+        <option value="0.5">0.5×</option>
+        <option value="0.75">0.75×</option>
+        <option value="0.9">0.9×</option>
+        <option value="1.0" selected>1.0×</option>
+        <option value="1.25">1.25×</option>
+        <option value="1.5">1.5×</option>
+        <option value="2.0">2.0×</option>
+      </select>
+      <button id="repeat" title="单句循环">🔁 单句</button>
+      <button id="auto" class="toggle-on" title="自动连播">连播</button>
+      <select id="loop" title="循环模式">
+        <option value="off">不循环</option>
+        <option value="track">单篇循环</option>
+        <option value="list" selected>列表循环</option>
+      </select>
+      <button id="vn-open" title="生词本">📒<span id="vn-count"></span></button>
+    </div>
+    <div class="meta" id="counter"></div>
+    <div class="meta" id="ready"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress"></div></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="panel">
+      <div class="panel-head">📋 播放列表 <span id="pl-count" class="hint"></span></div>
+      <div class="pl-list" id="pl-list"></div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="focus">
+      <div class="focus-top">
+        <div class="focus-label" id="focus-label"></div>
+        <button id="mark-done" class="mark-btn" title="标记本篇学习完成">✓ 标记完成</button>
+      </div>
+      <div class="focus-text" id="focus-text"></div>
+      <div class="focus-meta" id="focus-meta"></div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-head" id="sents-head"></div>
+      <div class="sents" id="sents"></div>
+    </div>
+  </main>
+
+  <aside class="vocab-col">
+    <div class="panel">
+      <div class="vocab-head"><h3>📚 生词速查</h3><span class="hint">点击朗读</span></div>
+      <div class="vocab-list" id="vocab"></div>
+    </div>
+    <div class="panel" style="padding:14px 16px; font-size:13px; color:var(--muted)">
+      <b>循环模式</b>：<br>
+      · 单篇循环 —— 一篇读完自动重播该篇<br>
+      · 列表循环 —— 全部读完回到第一篇<br>
+      <b>连播</b>：关闭则每句播完停下；<b>🔁 单句</b>：反复朗读当前句。<br>
+      快捷键：<kbd>空格</kbd> 播放/暂停 · <kbd>←</kbd><kbd>→</kbd> 上一句/下一句 · <kbd>Esc</kbd> 关闭弹窗<br>
+      点击左侧列表切换文章；正文任意单词可点击查词。
+    </div>
+  </aside>
+</div>
+
+<div id="lookup" class="lookup hidden">
+  <div class="lookup-head">
+    <span id="lookup-word" class="lookup-word"></span>
+    <span id="lookup-ipa" class="lookup-ipa"></span>
+    <button id="lookup-speak" class="lookup-btn" title="朗读">🔊</button>
+    <button id="lookup-save" class="lookup-btn" title="加入生词本">☆ 生词本</button>
+    <button id="lookup-close" class="lookup-btn" title="关闭">✕</button>
+  </div>
+  <div id="lookup-zh" class="lookup-zh hidden"></div>
+  <div id="lookup-body" class="lookup-body"></div>
+</div>
+
+<div id="vn-modal" class="vn-modal hidden">
+  <div class="vn-panel">
+    <div class="vn-head">
+      <h3>📒 生词本 <span id="vn-total" class="hint"></span></h3>
+      <button id="vn-export">导出</button>
+      <button id="vn-clear">清空</button>
+      <button id="vn-close">✕</button>
+    </div>
+    <div class="vn-list" id="vn-list"></div>
+  </div>
+</div>
+
+<script>
+const ARTICLES = __ARTICLES_JSON__;
+const vocabCache = ARTICLES.map(ar => new Set((ar.vocab || []).map(v => v.word.toLowerCase())));
+const totalSentences = ARTICLES.reduce((s, ar) => s + ar.sentences.length, 0);
+
+let a = 0, idx = 0, playing = false, repeatMode = false, autoMode = true;
+let loopMode = "list";  // off=不循环 / track=单篇循环 / list=列表循环
+const audio = new Audio();
+audio.preload = "auto";
+const $ = id => document.getElementById(id);
+const art = () => ARTICLES[a];
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+function wordCore(tok) {
+  return tok.replace(/^[^A-Za-zÀ-ÿ’']+/, "").replace(/[^A-Za-zÀ-ÿ’']+$/, "").toLowerCase();
+}
+
+function wrapWords(text) {
+  const set = vocabCache[a];
+  return text.split(/(\s+)/).map(tok => {
+    if (!tok || /^\s+$/.test(tok)) return tok;
+    const core = wordCore(tok);
+    if (!core) return esc(tok);
+    const cls = set.has(core) ? "w vw" : "w";
+    return `<span class="${cls}" data-w="${esc(core)}">${esc(tok)}</span>`;
+  }).join("");
+}
+
+function speakWord(w) {
+  if (!("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(w);
+  u.lang = "en-GB"; u.rate = 0.9;
+  speechSynthesis.speak(u);
+}
+
+// ---- 查词 ----
+function lemmaCandidates(w) {
+  const c = [w];
+  if (w.endsWith("ies") && w.length > 4) c.push(w.slice(0, -3) + "y");
+  if (w.endsWith("es") && w.length > 4) c.push(w.slice(0, -2));
+  if (w.endsWith("s") && !w.endsWith("ss") && w.length > 3) c.push(w.slice(0, -1));
+  if (w.endsWith("ed") && w.length > 4) c.push(w.slice(0, -2));
+  if (w.endsWith("ing") && w.length > 5) c.push(w.slice(0, -3));
+  return [...new Set(c)];
+}
+
+async function fetchDefinitions(word) {
+  let lastErr = new Error("not-found");
+  for (const c of lemmaCandidates(word)) {
+    try {
+      const r = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(c)}&md=d&max=5`);
+      if (!r.ok) { lastErr = new Error(`HTTP ${r.status}`); continue; }
+      const j = await r.json();
+      const hit = (j || []).find(x => (x.word || "").toLowerCase() === c.toLowerCase());
+      if (hit && hit.defs && hit.defs.length) return { defs: hit.defs, word: c };
+      lastErr = new Error("not-found");
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr;
+}
+
+async function fetchZh(word) {
+  try {
+    const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|zh-CN`);
+    const j = await r.json();
+    const t = j && j.responseData && j.responseData.translatedText;
+    if (!t || /MYMEMORY WARNING/i.test(t) || t.toLowerCase() === word.toLowerCase()) return "";
+    return t;
+  } catch { return ""; }
+}
+
+const POS = {
+  n: "名词", v: "动词", adj: "形容词", adv: "副词",
+  prep: "介词", conj: "连词", pron: "代词", interj: "感叹词", u: "",
+};
+
+function renderDef(defs, word) {
+  $("lookup-ipa").textContent = "";
+  let html = "";
+  let firstDef = "";
+  const seen = new Set();
+  for (const d of defs.slice(0, 5)) {
+    const parts = d.split("\t");
+    const pos = (parts[0] || "").trim();
+    const def = (parts[1] || "").trim();
+    if (!def || seen.has(pos + def)) continue;
+    seen.add(pos + def);
+    if (!firstDef) firstDef = def;
+    html += `<div class="lookup-pos">${POS[pos] || ""}</div><div class="lookup-def">${esc(def)}</div>`;
+  }
+  $("lookup-body").innerHTML = html || '<div class="lookup-loading">😕 未找到释义</div>';
+  $("lookup-speak").onclick = () => speakWord(word);
+  if (lastLookup) { lastLookup.en = firstDef; updateSaveBtn(); }
+}
+
+async function lookupWord(word, anchor) {
+  document.querySelectorAll(".w.active-lookup").forEach(el => el.classList.remove("active-lookup"));
+  if (anchor) anchor.classList.add("active-lookup");
+  $("lookup").classList.remove("hidden");
+  $("lookup-word").textContent = word;
+  $("lookup-ipa").textContent = "";
+  $("lookup-zh").classList.add("hidden");
+  lastLookup = { word: word, zh: "", en: "" };
+  updateSaveBtn();
+  $("lookup-body").innerHTML = '<div class="lookup-loading">🔍 查询中…</div>';
+  try {
+    const { defs, word: found } = await fetchDefinitions(word);
+    renderDef(defs, found);
+  } catch (e) {
+    $("lookup-body").innerHTML = '<div class="lookup-loading">😕 未找到释义（可试试单词原形，或检查网络）</div>';
+  }
+  const zh = await fetchZh(word);
+  if (zh) {
+    $("lookup-zh").textContent = "中：" + zh;
+    $("lookup-zh").classList.remove("hidden");
+    if (lastLookup) lastLookup.zh = zh;
+  }
+  updateSaveBtn();
+}
+
+// ---- 就绪状态（仅服务模式有 /status；静态模式自动忽略）----
+let lastStatus = null;
+function applyStatus(st) {
+  lastStatus = st;
+  const badge = $("ready");
+  if (badge) badge.textContent = st.done ? `✓ 就绪 ${st.total}` : `⏳ 生成中 ${st.ready}/${st.total}`;
+  const art2 = st.articles && st.articles[a];
+  if (art2 && art2.mask) {
+    document.querySelectorAll("#sents .sent").forEach((row, i) => {
+      row.classList.toggle("notready", art2.mask[i] === "0");
+    });
+  }
+}
+function pollStatus() {
+  fetch("/status", { cache: "no-store" })
+    .then(r => { if (!r.ok) throw new Error("no status"); return r.json(); })
+    .then(st => { applyStatus(st); if (!st.done) setTimeout(pollStatus, 2000); })
+    .catch(() => {});
+}
+
+// ---- 生词本（服务模式存文件；静态模式存浏览器 localStorage）----
+const VN_KEY = "echo_vocab";
+let vocabBook = [];
+let vocabServer = false;
+let lastLookup = null;
+
+async function vnLoad() {
+  try {
+    const r = await fetch("/vocab", { cache: "no-store" });
+    if (r.ok) { vocabBook = (await r.json()).items || []; vocabServer = true; return; }
+  } catch (e) { /* 静态模式，改用 localStorage */ }
+  try { vocabBook = JSON.parse(localStorage.getItem(VN_KEY) || "[]") || []; } catch (e) { vocabBook = []; }
+}
+
+function vnSaveLocal() {
+  try { localStorage.setItem(VN_KEY, JSON.stringify(vocabBook)); } catch (e) {}
+}
+
+async function vnPost(path, body) {
+  const r = await fetch(path, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}),
+  });
+  if (r.ok) vocabBook = (await r.json()).items || vocabBook;
+}
+
+function vnHas(word) {
+  return vocabBook.some(x => (x.word || "").toLowerCase() === String(word).toLowerCase());
+}
+
+async function vnAdd(entry) {
+  vocabBook = [entry].concat(vocabBook.filter(x => (x.word || "").toLowerCase() !== entry.word.toLowerCase()));
+  if (vocabServer) { try { await vnPost("/vocab/add", entry); } catch (e) {} } else { vnSaveLocal(); }
+  renderVocabBook();
+}
+
+async function vnRemove(word) {
+  vocabBook = vocabBook.filter(x => (x.word || "").toLowerCase() !== String(word).toLowerCase());
+  if (vocabServer) { try { await vnPost("/vocab/remove", { word }); } catch (e) {} } else { vnSaveLocal(); }
+  renderVocabBook();
+}
+
+async function vnClear() {
+  vocabBook = [];
+  if (vocabServer) { try { await vnPost("/vocab/clear", {}); } catch (e) {} } else { vnSaveLocal(); }
+  renderVocabBook();
+}
+
+function updateSaveBtn() {
+  const btn = $("lookup-save");
+  if (!btn || !lastLookup) return;
+  const has = vnHas(lastLookup.word);
+  btn.textContent = has ? "★ 已加入" : "☆ 生词本";
+  btn.classList.toggle("toggle-on", has);
+}
+
+function renderVocabBook() {
+  const n = vocabBook.length;
+  const cnt = $("vn-count");
+  if (cnt) cnt.textContent = n ? ` ${n}` : "";
+  const total = $("vn-total");
+  if (total) total.textContent = n ? `${n} 个` : "";
+  const box = $("vn-list");
+  if (box) {
+    box.innerHTML = n ? vocabBook.map((x, k) => `
+      <div class="vn-item">
+        <div class="vn-line">
+          <span class="vn-word">${esc(x.word)}</span>
+          ${x.zh ? `<span class="vn-zh">${esc(x.zh)}</span>` : ""}
+          <button class="vn-btn" data-act="speak" data-k="${k}" title="朗读">🔊</button>
+          <button class="vn-btn" data-act="jump" data-k="${k}" title="跳回原句">↪</button>
+          <button class="vn-btn" data-act="del" data-k="${k}" title="删除">🗑</button>
+        </div>
+        ${x.en ? `<div class="vn-en">${esc(x.en)}</div>` : ""}
+        ${x.note ? `<div class="vn-note">…${esc(x.note)}</div>` : ""}
+      </div>`).join("") : '<div class="vn-empty">生词本还是空的。<br>查词时点「☆ 生词本」即可加入。</div>';
+  }
+  updateSaveBtn();
+}
+
+function vnExport() {
+  const el = document.createElement("a");
+  el.href = URL.createObjectURL(new Blob([JSON.stringify(vocabBook, null, 2)], { type: "application/json" }));
+  el.download = "生词本.json";
+  el.click();
+  URL.revokeObjectURL(el.href);
+}
+
+function currentCtx() {
+  const s = art().sentences[idx];
+  return { note: s ? s.text : "", src: art().label, a: a, i: idx };
+}
+
+function vnJump(x) {
+  if (typeof x.a === "number" && ARTICLES[x.a] && typeof x.i === "number" && ARTICLES[x.a].sentences[x.i]) {
+    playArticle(x.a, x.i);
+  }
+}
+
+// ---- 学习进度：把文章标记为「已完成」----
+const PG_KEY = "echo_progress";
+let progress = {};
+let pgServer = false;
+
+async function pgLoad() {
+  try {
+    const r = await fetch("/progress", { cache: "no-store" });
+    if (r.ok) { progress = (await r.json()).completed || {}; pgServer = true; return; }
+  } catch (e) { /* 静态模式，改用 localStorage */ }
+  try { progress = JSON.parse(localStorage.getItem(PG_KEY) || "{}") || {}; } catch (e) { progress = {}; }
+}
+
+function pgSaveLocal() {
+  try { localStorage.setItem(PG_KEY, JSON.stringify(progress)); } catch (e) {}
+}
+
+async function pgSet(id, done) {
+  if (done) progress[id] = new Date().toISOString().slice(0, 19);
+  else delete progress[id];
+  if (pgServer) {
+    try {
+      const r = await fetch("/progress/mark", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: id, done: done }),
+      });
+      if (r.ok) progress = (await r.json()).completed || progress;
+    } catch (e) {}
+  } else {
+    pgSaveLocal();
+  }
+}
+
+function pgDone(k) { return !!progress[ARTICLES[k].id]; }
+function pgDoneCount() { return ARTICLES.filter(ar => progress[ar.id]).length; }
+
+function updateMarkBtn() {
+  const btn = $("mark-done");
+  if (!btn) return;
+  const done = !!progress[ARTICLES[a].id];
+  btn.textContent = done ? "✓ 已完成（点击取消）" : "✓ 标记完成";
+  btn.classList.toggle("done", done);
+}
+
+// ---- 渲染 ----
+function renderPlaylist() {
+  $("pl-list").innerHTML = ARTICLES.map((ar, k) => {
+    const done = !!progress[ar.id];
+    return `<div class="pl-item${done ? " done" : ""}" data-a="${k}">
+       <span class="pl-idx">${done ? "✓" : (k + 1)}</span>
+       <span class="pl-label">${esc(ar.label)}</span>
+       <span class="pl-n">${ar.sentences.length}句</span>
+     </div>`;
+  }).join("");
+  $("pl-count").textContent = `${ARTICLES.length} 篇 · 已完成 ${pgDoneCount()}`;
+}
+
+function renderArticle() {
+  $("sents").innerHTML = art().sentences.map((s, i) =>
+    `<div class="sent" data-i="${i}"><span class="idx">${i + 1}</span><span class="txt">${wrapWords(s.text)}</span></div>`).join("");
+  $("vocab").innerHTML = (art().vocab || []).map(v =>
+    `<div class="vocab-item" data-w="${esc(v.word)}">
+       <div class="vw-line"><span class="vw-word">${esc(v.word)}</span><span class="vw-ipa">${esc(v.phonetic)}</span><span class="speaker">🔊</span></div>
+       <div class="vw-mean">${esc(v.meaning)}</div>
+       <div class="vw-ex">${esc(v.example)}</div>
+     </div>`).join("");
+  document.querySelectorAll(".pl-item").forEach((el, k) => el.classList.toggle("active", k === a));
+  $("focus-label").textContent = `${art().label} · 正在朗读 · 点击可重播`;
+  $("sents-head").textContent = `${art().label} · 逐句 · 点击跳转`;
+  updateMarkBtn();
+  if (lastStatus) applyStatus(lastStatus);
+}
+
+function globalIndex() {
+  let g = 0;
+  for (let k = 0; k < a; k++) g += ARTICLES[k].sentences.length;
+  return g + idx;
+}
+
+function setActive(i) {
+  idx = i;
+  document.querySelectorAll(".sent").forEach((el, k) => el.classList.toggle("active", k === i));
+  const cur = document.querySelector(".sent.active");
+  if (cur) cur.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  $("focus-text").innerHTML = wrapWords(art().sentences[i].text);
+  $("focus-meta").textContent = `第 ${i + 1} / ${art().sentences.length} 句`;
+  $("counter").textContent = `文章 ${a + 1}/${ARTICLES.length} · 句 ${i + 1}/${art().sentences.length}`;
+  $("progress").style.width = `${((globalIndex() + 1) / totalSentences) * 100}%`;
+  $("focus-text").onclick = e => {
+    const w = e.target.closest(".w");
+    if (w) lookupWord(w.dataset.w, w);
+    else play(i);
+  };
+}
+
+function play(i) {
+  if (i !== undefined) idx = i;
+  audio.src = art().sentences[idx].audio;
+  audio.playbackRate = parseFloat($("speed").value);
+  audio.play().then(() => { playing = true; renderPlay(); }).catch(() => {});
+  setActive(idx);
+}
+
+function playArticle(ai, si) {
+  if (ai < 0 || ai >= ARTICLES.length) return;
+  a = ai;
+  renderArticle();
+  play(si !== undefined ? si : 0);
+}
+
+function lastSentence() { return idx >= art().sentences.length - 1; }
+function lastArticle() { return a >= ARTICLES.length - 1; }
+
+// 手动「下一句」：尽量往后走，到头后按循环模式处理
+function nextSentence() {
+  if (!lastSentence()) { play(idx + 1); return; }
+  if (!lastArticle()) { playArticle(a + 1, 0); return; }
+  if (loopMode === "list") { playArticle(0, 0); return; }   // 列表循环 → 回到第一篇
+  if (loopMode === "track") { play(0); return; }            // 单篇循环 → 本篇重头
+  audio.pause(); playing = false; renderPlay();
+}
+
+function prevSentence() {
+  if (idx > 0) { play(idx - 1); return; }
+  if (a > 0) { playArticle(a - 1, ARTICLES[a - 1].sentences.length - 1); return; }
+  if (loopMode !== "off") {
+    const lastA = ARTICLES.length - 1;
+    playArticle(lastA, ARTICLES[lastA].sentences.length - 1);
+    return;
+  }
+  play(0);
+}
+
+function pause() { audio.pause(); playing = false; renderPlay(); }
+function togglePlay() { playing ? pause() : play(idx); }
+function renderPlay() { $("play").textContent = playing ? "⏸" : "▶"; }
+
+audio.addEventListener("ended", () => {
+  if (repeatMode) { audio.currentTime = 0; audio.play(); return; }   // 单句循环
+  if (!autoMode) { playing = false; renderPlay(); return; }          // 未开连播
+  if (!lastSentence()) { play(idx + 1); return; }                    // 本篇下一句
+  // 本篇播完
+  if (loopMode === "track") { play(0); return; }                     // 单篇循环
+  if (!lastArticle()) { playArticle(a + 1, 0); return; }             // 还有下一篇
+  if (loopMode === "list") { playArticle(0, 0); return; }            // 列表循环
+  playing = false; renderPlay();
+});
+
+// ---- 事件 ----
+$("pl-list").addEventListener("click", e => {
+  const item = e.target.closest(".pl-item");
+  if (item) playArticle(parseInt(item.dataset.a, 10), 0);
+});
+
+$("sents").addEventListener("click", e => {
+  const w = e.target.closest(".w");
+  if (w) { lookupWord(w.dataset.w, w); return; }
+  const row = e.target.closest(".sent");
+  if (row) play(parseInt(row.dataset.i, 10));
+});
+
+$("vocab").addEventListener("click", e => {
+  const item = e.target.closest(".vocab-item");
+  if (item) { speakWord(item.dataset.w); lookupWord(item.dataset.w, item); }
+});
+
+$("play").addEventListener("click", togglePlay);
+$("prev").addEventListener("click", prevSentence);
+$("next").addEventListener("click", nextSentence);
+$("speed").addEventListener("change", () => { audio.playbackRate = parseFloat($("speed").value); });
+$("loop").addEventListener("change", () => { loopMode = $("loop").value; });
+$("repeat").addEventListener("click", () => {
+  repeatMode = !repeatMode;
+  $("repeat").classList.toggle("toggle-on", repeatMode);
+});
+$("auto").addEventListener("click", () => {
+  autoMode = !autoMode;
+  $("auto").classList.toggle("toggle-on", autoMode);
+});
+
+$("lookup-close").addEventListener("click", () => $("lookup").classList.add("hidden"));
+document.addEventListener("click", e => {
+  const card = $("lookup");
+  if (card.classList.contains("hidden")) return;
+  if (card.contains(e.target)) return;
+  if (e.target.closest(".w, .vocab-item")) return;
+  card.classList.add("hidden");
+});
+
+document.addEventListener("keydown", e => {
+  if (!$("vn-modal").classList.contains("hidden")) {
+    if (e.key === "Escape") $("vn-modal").classList.add("hidden");
+    return;
+  }
+  if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
+  if (e.code === "Space") { e.preventDefault(); togglePlay(); }
+  else if (e.key === "ArrowLeft") prevSentence();
+  else if (e.key === "ArrowRight") nextSentence();
+  else if (e.key === "Escape") $("lookup").classList.add("hidden");
+});
+
+// ---- 生词本事件 ----
+$("vn-open").addEventListener("click", () => { renderVocabBook(); $("vn-modal").classList.remove("hidden"); });
+$("vn-close").addEventListener("click", () => $("vn-modal").classList.add("hidden"));
+$("vn-modal").addEventListener("click", e => { if (e.target.id === "vn-modal") $("vn-modal").classList.add("hidden"); });
+$("vn-export").addEventListener("click", vnExport);
+$("vn-clear").addEventListener("click", () => { if (confirm("确定清空生词本？")) vnClear(); });
+$("vn-list").addEventListener("click", e => {
+  const b = e.target.closest(".vn-btn");
+  if (!b) return;
+  const item = vocabBook[parseInt(b.dataset.k, 10)];
+  if (!item) return;
+  if (b.dataset.act === "speak") speakWord(item.word);
+  else if (b.dataset.act === "del") vnRemove(item.word);
+  else if (b.dataset.act === "jump") { $("vn-modal").classList.add("hidden"); vnJump(item); }
+});
+$("lookup-save").addEventListener("click", () => {
+  if (!lastLookup) return;
+  if (vnHas(lastLookup.word)) {
+    vnRemove(lastLookup.word);
+  } else {
+    const c = currentCtx();
+    vnAdd({ word: lastLookup.word, zh: lastLookup.zh || "", en: lastLookup.en || "",
+            note: c.note, src: c.src, a: c.a, i: c.i });
+  }
+});
+
+// ---- 学习进度事件 ----
+$("mark-done").addEventListener("click", async () => {
+  const id = ARTICLES[a].id;
+  await pgSet(id, !progress[id]);
+  renderPlaylist();
+  renderArticle();
+  setActive(idx);
+});
+
+renderPlaylist();
+renderArticle();
+setActive(0);
+pollStatus();
+Promise.all([vnLoad(), pgLoad()]).then(() => {
+  renderVocabBook();
+  renderPlaylist();
+  updateMarkBtn();
+});
+</script>
+</body>
+</html>
