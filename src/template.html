@@ -39,7 +39,7 @@
   }
   .title {
     font-family: var(--serif); font-size: 17px; font-weight: 700;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 460px;
   }
   .controls { display: flex; align-items: center; gap: 8px; }
   button {
@@ -59,10 +59,15 @@
     border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink);
   }
   .meta { color: var(--muted); font-size: 13px; }
-  .progress-track {
-    flex-basis: 100%; height: 5px; background: var(--line); border-radius: 3px; overflow: hidden;
-  }
+  .spacer { flex: 1; }
+  .progress-track { height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }
   .progress-fill { height: 100%; width: 0%; background: var(--accent); transition: width .2s linear; }
+
+  /* ---- 播放区（中栏下部，随页面滚动）---- */
+  .player { margin-top: 16px; padding: 14px 16px 12px; }
+  .player-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .player-meta { display: flex; align-items: center; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
+  .player .progress-track { margin-top: 10px; }
 
   /* ---- 主体布局 ---- */
   .layout {
@@ -83,7 +88,7 @@
   /* ---- 全文句子列表 ---- */
   .panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
   .panel-head { padding: 12px 18px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); }
-  .sents { max-height: 70vh; overflow-y: auto; }
+  .sents { max-height: max(200px, calc(100vh - 540px)); overflow-y: auto; }
   .sent {
     display: flex; gap: 12px; padding: 11px 16px; cursor: pointer;
     border-bottom: 1px solid var(--line); transition: background .15s;
@@ -200,31 +205,9 @@
 <header>
   <div class="bar">
     <div class="title">🎧 Echo · __TITLE__</div>
-    <div class="controls">
-      <button id="prev" title="上一句 (←)">⏮</button>
-      <button id="play" class="primary" title="播放/暂停 (空格)">▶</button>
-      <button id="next" title="下一句 (→)">⏭</button>
-      <select id="speed" title="语速">
-        <option value="0.5">0.5×</option>
-        <option value="0.75">0.75×</option>
-        <option value="0.9">0.9×</option>
-        <option value="1.0" selected>1.0×</option>
-        <option value="1.25">1.25×</option>
-        <option value="1.5">1.5×</option>
-        <option value="2.0">2.0×</option>
-      </select>
-      <button id="repeat" title="单句循环">🔁 单句</button>
-      <button id="auto" class="toggle-on" title="自动连播">连播</button>
-      <select id="loop" title="循环模式">
-        <option value="off">不循环</option>
-        <option value="track" selected>单篇循环</option>
-      </select>
-      <button id="vn-open" title="生词本">📒<span id="vn-count"></span></button>
-      <button id="set-open" title="设置">⚙️</button>
-    </div>
-    <div class="meta" id="counter">0 / 0</div>
-    <div class="meta" id="ready"></div>
-    <div class="progress-track"><div class="progress-fill" id="progress"></div></div>
+    <div class="spacer"></div>
+    <button id="vn-open" title="生词本">📒<span id="vn-count"></span></button>
+    <button id="set-open" title="设置">⚙️</button>
   </div>
 </header>
 
@@ -239,6 +222,36 @@
       <div class="panel-head">全文逐句 · 点击任意一句跳转朗读</div>
       <div class="sents" id="sents"></div>
     </div>
+
+    <section class="panel player">
+      <div class="player-row">
+        <button id="prev" title="上一句 (←)">⏮</button>
+        <button id="play" class="primary" title="播放/暂停 (空格)">▶</button>
+        <button id="next" title="下一句 (→)">⏭</button>
+        <div class="spacer"></div>
+        <select id="speed" title="语速">
+          <option value="0.5">0.5×</option>
+          <option value="0.75">0.75×</option>
+          <option value="0.9">0.9×</option>
+          <option value="1.0" selected>1.0×</option>
+          <option value="1.25">1.25×</option>
+          <option value="1.5">1.5×</option>
+          <option value="2.0">2.0×</option>
+        </select>
+        <button id="repeat" title="单句循环">🔁 单句</button>
+        <button id="auto" class="toggle-on" title="自动连播">连播</button>
+        <select id="loop" title="循环模式">
+          <option value="off">不循环</option>
+          <option value="track" selected>单篇循环</option>
+        </select>
+      </div>
+      <div class="player-meta">
+        <span class="meta" id="counter">0 / 0</span>
+        <span class="meta" id="ready"></span>
+        <span class="hint">空格 播放/暂停 · ←→ 切句 · 点击句子跳转</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progress"></div></div>
+    </section>
   </main>
 
   <aside>
