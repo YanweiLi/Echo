@@ -11,10 +11,15 @@ Echo/
 ├── src/                        ← 📦 源码
 │   ├── player.py                   主程序
 │   ├── template.html               单篇播放器模板
-│   └── playlist_template.html      播放列表模板
-├── launch.command              ← ⭐ 双击启动（入口）
+│   ├── playlist_template.html      播放列表模板
+│   └── macos/                      macOS 原生外壳（Swift + WKWebView）
+├── tools/
+│   └── make_icon.swift         应用图标生成器
+├── launch.command              ← ⭐ 双击启动（网页版）
+├── build-app.command           ← ⭐ 编译 macOS App
 ├── choose-folder.command       ← 更换搜索路径
 ├── requirements.txt
+├── Echo.app                    ← 🖥 编译出的 App（不入库）
 ├── dist/                       ← 🎵 产物（音频 + 生成的页面，不入库）
 ├── data/                       ← 🔒 个人数据（config / vocab / progress，不入库）
 ├── .venv/                      ← 运行环境（不入库）
@@ -49,6 +54,21 @@ python src/player.py --print-path                    # 查看已记录的路径
 python src/player.py --save-path "/某个/目录"         # 记录/更换搜索路径
 python src/player.py                                 # 不带参数：用记录的路径 + 服务模式启动
 ```
+
+## macOS 原生 App（可选）
+
+想把 Echo 做成一个真正的 macOS 程序（Dock 图标 + 独立窗口，不用浏览器）：
+
+1. 双击 **`build-app.command`** 编译（约 10 秒，用系统自带的 `swiftc`，无需完整 Xcode）
+2. 双击生成的 **`Echo.app`** → 打开独立窗口，内置浏览器直接加载播放器
+3. **关闭窗口即退出**，Python 服务会自动停止（不会残留进程）
+
+说明：
+
+- `Echo.app` 需放在项目根目录（与 `src/`、`.venv/` 同级），它会自动定位项目
+- 体积仅约 **1.5 MB**：不含 Python 运行时，复用项目里的 `.venv`
+- 也可以拷到「应用程序」文件夹：App 会自动回退到 `~/Projects/Echo` 查找项目
+- 源码：`src/macos/main.swift`；图标：`tools/make_icon.swift`
 
 ## 服务模式
 

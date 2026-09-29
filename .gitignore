@@ -10,5 +10,9 @@ dist/
 # 个人数据：搜索路径 / 生词本 / 学习进度
 data/
 
+# 构建产物（build-app.command 生成）
+*.app
+*.iconset
+
 # macOS
 .DS_Store
