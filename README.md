@@ -252,6 +252,7 @@ python src/player.py --dir "/Volumes/EAGET忆捷/英语学习/Economist/2026" --
 - 存储位置：
   - 服务模式 → `data/vocab.json`（也可手动编辑/备份）
   - 静态模式 → 浏览器 `localStorage`
+- **误点「清空」也能找回**：清空前会自动存一份到 `data/backup/vocab-<时间>.json`（保留最近 10 份）
 
 ## 中文翻译（点击才显示） 🈶
 
@@ -290,13 +291,25 @@ python src/player.py --dir "/Volumes/EAGET忆捷/英语学习/Economist/2026" --
 - 抽屉开着时切句 → **不会自动拆解**，只显示「拆解第 N 句」按钮（点了才花钱）
 - 模型输出一律**转义后渲染**，不会执行模型返回的任何 HTML
 
-### 配置
+### 配置（只需两项）
 
-1. 点顶栏 **⚙️** → **🤖 AI 拆解**
-2. 选厂商（自动填接口地址 + 推荐模型）→ 填 **API Key** → **保存** → **测试连接**
-3. 适配任何 **OpenAI 兼容** 的 `/chat/completions`：DeepSeek、智谱 GLM、Kimi、通义、硅基流动，
-   也支持**本机 Ollama**（`http://127.0.0.1:11434/v1`，离线、免费）或各类中转服务
-4. API Key 只存在本机 `data/config.json`，不会上传到任何服务器；界面里只显示打码值（如 `sk-…abcd`）
+点顶栏 **⚙️** → **🤖 AI 拆解** → 填 **模型名** + **API Key** → **保存** → **测试连接**。
+
+接口地址会**按模型名自动识别**，不用手填：
+
+| 模型名示例 | 自动使用的接口 |
+| --- | --- |
+| `deepseek-chat` / `deepseek-reasoner` | `https://api.deepseek.com/v1` |
+| `glm-4-flash` / `glm-4-plus` | `https://open.bigmodel.cn/api/paas/v4` |
+| `moonshot-v1-8k` / `kimi-k2-…` | `https://api.moonshot.cn/v1` |
+| `qwen-plus` / `qwen-max` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| `Qwen/Qwen2.5-7B-Instruct`（含 `/`） | `https://api.siliconflow.cn/v1` |
+| `qwen2.5:7b` / `llama3.1:8b`（含 `:`） | 本机 Ollama `http://127.0.0.1:11434/v1` |
+| `gpt-4o-mini` / `o3-mini` | `https://api.openai.com/v1` |
+
+- 认不出来（自建 / 中转 / 公司网关）→ 点「**高级：自定义接口地址**」手填即可；清空该框就回到自动识别
+- 凡是 **OpenAI 兼容**的 `/chat/completions` 都能用
+- API Key 只存在本机 `data/config.json`，界面上只显示打码值（如 `sk-…abcd`）
 
 ### 费用
 
@@ -340,8 +353,9 @@ dist/
 
 ```
 data/
-├── config.json        ← 搜索路径，以及可选的 AI 配置（ai_provider/ai_base_url/ai_model/ai_api_key）与 mymemory_email
+├── config.json        ← 搜索路径，以及可选的 AI 配置（ai_model / ai_api_key / 可选 ai_base_url）与 mymemory_email
 ├── vocab.json         ← 生词本
+├── backup/            ← 清空生词本前的自动备份（保留最近 10 份）
 ├── progress.json      ← 学习进度
 ├── translations.json  ← 句子中译缓存（按需生成）
 └── explains.json      ← AI 拆解缓存（按需生成）

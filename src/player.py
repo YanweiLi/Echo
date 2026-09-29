@@ -189,17 +189,17 @@ def settings_payload():
         "data_dir": str(DATA_DIR),
         "config_file": str(CONFIG_FILE),
         "vocab_file": str(VOCAB_FILE),
+        "vocab_backup_dir": str(DATA_DIR / "backup"),
         "progress_file": str(PROGRESS_FILE),
         "translations_file": str(TRANSLATIONS_FILE),
         "translated_count": len(TR_CACHE),
         "explains_file": str(EXPLAINS_FILE),
         "explain_count": len(EXPLAIN_CACHE),
-        "ai_provider": ai_config()["provider"],
-        "ai_base_url": ai_config()["base_url"],
         "ai_model": ai_config()["model"],
+        "ai_base_url": ai_config()["base_url"],
+        "ai_base_url_custom": ai_config()["base_url_custom"],
         "ai_key_masked": mask_key(ai_config()["api_key"]),
         "ai_configured": ai_configured(),
-        "ai_providers": AI_PROVIDERS,
         "bootstrap_file": str(BOOTSTRAP_FILE),
         "search_dirs": get_search_dirs(),
     }
@@ -383,23 +383,39 @@ def translate_sentence(text):
 # ---- AI 句子拆解（OpenAI 兼容接口 + 本地永久缓存）----
 PROMPT_VERSION = "e1"      # 改提示词后调大，旧缓存自动失效
 
-AI_PROVIDERS = [
-    {"id": "deepseek", "name": "DeepSeek", "base_url": "https://api.deepseek.com/v1",
-     "model": "deepseek-chat"},
-    {"id": "zhipu", "name": "智谱 GLM", "base_url": "https://open.bigmodel.cn/api/paas/v4",
-     "model": "glm-4-flash"},
-    {"id": "moonshot", "name": "Kimi（Moonshot）", "base_url": "https://api.moonshot.cn/v1",
-     "model": "moonshot-v1-8k"},
-    {"id": "dashscope", "name": "通义千问（DashScope 兼容模式）",
-     "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-     "model": "qwen-plus"},
-    {"id": "siliconflow", "name": "硅基流动 SiliconFlow",
-     "base_url": "https://api.siliconflow.cn/v1",
-     "model": "Qwen/Qwen2.5-7B-Instruct"},
-    {"id": "ollama", "name": "本机 Ollama（离线）", "base_url": "http://127.0.0.1:11434/v1",
-     "model": "qwen2.5:7b"},
-    {"id": "custom", "name": "自定义", "base_url": "", "model": ""},
-]
+# 接口地址自动识别：用户只需填「模型名 + Key」，地址按模型名推断
+AI_BASE_URL_HINTS = (
+    ("deepseek", "https://api.deepseek.com/v1"),
+    ("glm", "https://open.bigmodel.cn/api/paas/v4"),
+    ("chatglm", "https://open.bigmodel.cn/api/paas/v4"),
+    ("moonshot", "https://api.moonshot.cn/v1"),
+    ("kimi", "https://api.moonshot.cn/v1"),
+    ("qwen", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+    ("qwq", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+    ("gpt", "https://api.openai.com/v1"),
+    ("o1", "https://api.openai.com/v1"),
+    ("o3", "https://api.openai.com/v1"),
+    ("o4", "https://api.openai.com/v1"),
+    ("llama", "http://127.0.0.1:11434/v1"),
+    ("mistral", "http://127.0.0.1:11434/v1"),
+    ("gemma", "http://127.0.0.1:11434/v1"),
+    ("phi", "http://127.0.0.1:11434/v1"),
+)
+
+
+def ai_infer_base_url(model):
+    """按模型名推断接口地址，让设置页只需要「模型 + Key」两项。"""
+    m = str(model or "").strip().lower()
+    if not m:
+        return ""
+    if "/" in m:            # 带命名空间，如 Qwen/Qwen2.5-7B-Instruct → 多为硅基流动
+        return "https://api.siliconflow.cn/v1"
+    if ":" in m:            # 带标签，如 qwen2.5:7b → 本机 Ollama
+        return "http://127.0.0.1:11434/v1"
+    for prefix, base in AI_BASE_URL_HINTS:
+        if m.startswith(prefix):
+            return base
+    return ""
 
 EXPLAIN_KEYS = ("skeleton", "grammar", "phrases", "reference", "translation", "pattern")
 
@@ -411,18 +427,22 @@ EXPLAIN_SYSTEM = (
 
 
 def ai_config():
+    """AI 配置：只需 model + key；地址优先用自填，否则按模型名推断。"""
     cfg = load_config()
+    model = str(cfg.get("ai_model") or "").strip()
+    custom = str(cfg.get("ai_base_url") or "").strip().rstrip("/")
     return {
-        "provider": str(cfg.get("ai_provider") or "deepseek"),
-        "base_url": str(cfg.get("ai_base_url") or "").strip().rstrip("/"),
+        "model": model,
         "api_key": str(cfg.get("ai_api_key") or "").strip(),
-        "model": str(cfg.get("ai_model") or "").strip(),
+        "base_url": custom or ai_infer_base_url(model),
+        "base_url_custom": custom,
     }
 
 
 def ai_configured():
+    """模型名 + 能确定接口地址就算配好了（Ollama 不需要 Key）。"""
     c = ai_config()
-    return bool(c["base_url"] and c["model"])
+    return bool(c["model"] and c["base_url"])
 
 
 def mask_key(k):
@@ -436,8 +456,10 @@ def mask_key(k):
 def _ai_chat(messages, json_mode=True, timeout=90, max_tokens=1400):
     """调 OpenAI 兼容的 /chat/completions（国内厂商 + Ollama 通吃）。"""
     c = ai_config()
-    if not c["base_url"] or not c["model"]:
-        raise RuntimeError("未配置 AI：请在设置页填写接口地址与模型名")
+    if not c["base_url"]:
+        raise RuntimeError("认不出这个模型用哪家接口，请在设置页展开「高级」填写接口地址")
+    if not c["model"]:
+        raise RuntimeError("未配置 AI：请在设置页填写模型名")
     payload = {"model": c["model"], "messages": messages, "temperature": 0.2,
                "max_tokens": max_tokens, "stream": False}
     if json_mode:
@@ -589,29 +611,34 @@ def explain_sentence(sentence, ctx=None, force=False):
 
 
 def save_ai_settings(body):
-    """保存 AI 配置；api_key 传空字符串表示「保持原值不变」。"""
+    """保存 AI 配置。约定：api_key 传空字符串 = 保持原值不变；
+    base_url 传空 + auto_base = 清掉自填地址、回到按模型名自动识别。"""
     body = body or {}
     cfg = load_config()
-    for src, dst in (("provider", "ai_provider"), ("base_url", "ai_base_url"),
-                     ("model", "ai_model")):
-        v = body.get(src)
-        if isinstance(v, str) and v.strip():
-            cfg[dst] = v.strip()
+    v = body.get("model")
+    if isinstance(v, str) and v.strip():
+        cfg["ai_model"] = v.strip()
     if isinstance(body.get("api_key"), str) and body["api_key"].strip():
         cfg["ai_api_key"] = body["api_key"].strip()
     if body.get("clear_key"):
         cfg.pop("ai_api_key", None)
+    base = body.get("base_url")
+    if isinstance(base, str) and base.strip():
+        cfg["ai_base_url"] = base.strip()
+    elif body.get("auto_base"):
+        cfg.pop("ai_base_url", None)
+    cfg.pop("ai_provider", None)          # 旧字段，已不需要
     _save_config(cfg)
     c = ai_config()
-    return {"ok": True, "configured": ai_configured(), "provider": c["provider"],
-            "base_url": c["base_url"], "model": c["model"],
+    return {"ok": True, "configured": ai_configured(), "model": c["model"],
+            "base_url": c["base_url"], "base_url_custom": c["base_url_custom"],
             "key_masked": mask_key(c["api_key"])}
 
 
 def ai_test():
-    """用最小请求验证 Key / 地址 / 模型是否可用。"""
+    """用最小请求验证 Key / 模型 / 地址是否可用。"""
     if not ai_configured():
-        return {"ok": False, "error": "请先填写接口地址与模型名"}
+        return {"ok": False, "error": "请先填写模型名（认不出厂商时再填接口地址）"}
     t0 = time.time()
     try:
         out = _ai_chat([{"role": "user", "content": "Reply with exactly: ok"}],
@@ -636,6 +663,26 @@ def load_vocab():
 
 def _save_vocab(items):
     VOCAB_FILE.write_text(json.dumps(items, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def backup_json(path, keep=10):
+    """破坏性操作前存一份带时间戳的备份（vocab / progress 这类用户数据）。"""
+    try:
+        p = Path(path)
+        if not p.exists() or p.stat().st_size <= 4:      # 空文件不必备
+            return ""
+        d = p.parent / "backup"
+        d.mkdir(parents=True, exist_ok=True)
+        dst = d / f"{p.stem}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+        dst.write_bytes(p.read_bytes())
+        for old in sorted(d.glob(f"{p.stem}-*.json"))[:-keep]:
+            try:
+                old.unlink()
+            except OSError:
+                pass
+        return str(dst)
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 def vocab_add(entry):
@@ -664,6 +711,7 @@ def vocab_remove(word):
 
 def vocab_clear():
     with _vocab_lock:
+        backup_json(VOCAB_FILE)          # 清空前自动备份，误点可找回
         _save_vocab([])
     return []
 
@@ -1307,11 +1355,35 @@ def make_handler(page_html, lib, engine, status_payload, on_issue_loaded=None):
             try:
                 n = int(self.headers.get("Content-Length") or 0)
                 raw = self.rfile.read(n) if n else b""
+                self._body_read = True
                 return json.loads(raw.decode("utf-8")) if raw else {}
             except Exception:  # noqa: BLE001
                 return {}
 
+        def _drain_body(self):
+            """没被读走的请求体必须丢弃，否则 keep-alive 会把残留字节当成下一个请求，
+            服务端会报 501 Unsupported method / 请求错位。"""
+            if getattr(self, "_body_read", False):
+                return
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                return
+            if n > 0:
+                try:
+                    self.rfile.read(n)
+                except Exception:  # noqa: BLE001
+                    pass
+            self._body_read = True
+
         def do_GET(self):
+            self._body_read = False
+            try:
+                self._route()
+            finally:
+                self._drain_body()
+
+        def _route(self):
             parsed = urlparse(self.path)
             path = parsed.path
             if path in ("/", "/index.html", "/playlist.html", "/player.html"):
@@ -1343,10 +1415,10 @@ def make_handler(page_html, lib, engine, status_payload, on_issue_loaded=None):
                                                 q.get("force", ["0"])[0] == "1"))
             elif path == "/ai/status":
                 c = ai_config()
-                self._json_out({"configured": ai_configured(), "provider": c["provider"],
-                                "base_url": c["base_url"], "model": c["model"],
+                self._json_out({"configured": ai_configured(), "model": c["model"],
+                                "base_url": c["base_url"],
+                                "base_url_custom": c["base_url_custom"],
                                 "key_masked": mask_key(c["api_key"]),
-                                "providers": AI_PROVIDERS,
                                 "explains_file": str(EXPLAINS_FILE),
                                 "explain_count": len(EXPLAIN_CACHE)})
             elif path == "/ai/settings":

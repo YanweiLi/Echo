@@ -259,6 +259,9 @@
   /* ---- 设置页 ---- */
   .set-section { padding: 4px 0 14px; border-bottom: 1px solid var(--line); }
   .set-section:last-child { border-bottom: none; padding-bottom: 4px; }
+  .set-link { border: none; background: none; padding: 0; cursor: pointer;
+              color: var(--accent); font-size: 12.5px; font-family: inherit;
+              text-decoration: underline; }
   .set-row input[type=text], .set-row input[type=password], .set-row select {
     flex: 1; min-width: 0; font-family: inherit; font-size: 13px; padding: 6px 8px;
     border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink);
@@ -854,6 +857,7 @@ function renderSettings() {
       ${infoRow("数据目录", settings.data_dir)}
       ${infoRow("生词本", settings.vocab_file)}
       ${infoRow("学习进度", settings.progress_file)}
+      ${infoRow("自动备份（清空前的副本）", settings.vocab_backup_dir)}
       ${infoRow("句子中译缓存（" + (settings.translated_count || 0) + " 句）", settings.translations_file)}
       ${infoRow("产物目录", settings.dist_dir)}
       ${infoRow("项目根目录", settings.project_root)}
@@ -866,35 +870,29 @@ function renderSettings() {
     <div class="set-section">
       <div class="set-title">🤖 AI 拆解 <span class="hint">（点句子右侧「析」让 AI 精讲）</span></div>
       <div class="set-row">
-        <span class="set-label">厂商</span>
-        <select id="set-ai-provider">
-          ${(settings.ai_providers || []).map(p =>
-            `<option value="${esc(p.id)}"${p.id === settings.ai_provider ? " selected" : ""}>${esc(p.name)}</option>`).join("")}
-        </select>
-      </div>
-      <div class="set-row">
-        <span class="set-label">接口地址</span>
-        <input id="set-ai-base" type="text" placeholder="https://api.deepseek.com/v1" value="${esc(settings.ai_base_url || "")}" />
-      </div>
-      <div class="set-row">
         <span class="set-label">模型</span>
         <input id="set-ai-model" type="text" placeholder="deepseek-chat" value="${esc(settings.ai_model || "")}" />
       </div>
       <div class="set-row">
         <span class="set-label">API Key</span>
-        <input id="set-ai-key" type="password" placeholder="${settings.ai_key_masked ? esc(settings.ai_key_masked) + "（留空=不修改）" : "尚未填写"}" />
+        <input id="set-ai-key" type="password" placeholder="${settings.ai_key_masked ? esc(settings.ai_key_masked) + "（留空=不修改）" : "粘贴你的 API Key"}" />
+      </div>
+      <div class="set-row${settings.ai_base_url_custom ? "" : " hidden"}" id="set-ai-advrow">
+        <span class="set-label">接口地址</span>
+        <input id="set-ai-base" type="text" placeholder="留空 = 按模型名自动识别" value="${esc(settings.ai_base_url_custom || "")}" />
       </div>
       <div class="set-add">
         <button id="set-ai-save">保存</button>
         <button id="set-ai-test">测试连接</button>
         <button id="set-ai-clear">清空拆解缓存</button>
       </div>
+      <div class="set-note" id="set-ai-status" style="display:none"></div>
       <div class="set-note" id="set-ai-note">
-        ${settings.ai_configured ? "✅ 已配置" : "⚠️ 尚未配置完整（接口地址 + 模型 + Key）"}
-        · 拆解缓存 <b>${settings.explain_count || 0}</b> 条
-        <span class="set-path">${esc(settings.explains_file || "")}</span>
-        <br>Key 只存在本机 <code>data/config.json</code>，不会上传到任何服务器；
-        AI 拆解按句按需调用，同一句只请求一次。
+        ${settings.ai_configured ? "✅ 已配置" : "⚠️ 填模型名即可，如 deepseek-chat / glm-4-flash / qwen-plus / moonshot-v1-8k"}
+        · 接口地址 <code>${esc(settings.ai_base_url || "按模型名自动识别")}</code>${settings.ai_base_url_custom ? "（自填）" : ""}
+        · 缓存 <b>${settings.explain_count || 0}</b> 条
+        <br><button class="set-link" id="set-ai-advbtn">高级：自定义接口地址（中转 / 自建 / Ollama）</button>
+        · 同一句只请求一次；Key 只存在本机 <code>data/config.json</code>
       </div>
     </div>`;
 }
@@ -1091,14 +1089,6 @@ $("zh-toggle").addEventListener("click", () => toggleFocusZh(SENTENCES[idx].text
 
 // ---- AI 拆解事件 ----
 $("ai-open").addEventListener("click", () => openAiDrawer(idx));
-// 设置页：换厂商时自动填接口地址与推荐模型
-$("set-body").addEventListener("change", e => {
-  if (e.target.id !== "set-ai-provider") return;
-  const p = ((settings && settings.ai_providers) || []).find(x => x.id === e.target.value);
-  if (!p) return;
-  $("set-ai-base").value = p.base_url;
-  $("set-ai-model").value = p.model;
-});
 $("ai-close").addEventListener("click", closeAiDrawer);
 $("ai-regen").addEventListener("click", () => {
   if (aiOpenIndex !== null) openAiDrawer(aiOpenIndex, true);
@@ -1137,18 +1127,24 @@ $("set-body").addEventListener("click", async e => {
     renderSettings();
     return;
   }
+  if (e.target.id === "set-ai-advbtn") {
+    $("set-ai-advrow").classList.toggle("hidden");
+    return;
+  }
   if (e.target.id === "set-ai-save") {
     const r = await setPost("/ai/settings", {
-      provider: $("set-ai-provider").value,
-      base_url: $("set-ai-base").value.trim(),
       model: $("set-ai-model").value.trim(),
-      api_key: $("set-ai-key").value.trim(),   // 空 = 不修改
+      api_key: $("set-ai-key").value.trim(),      // 空 = 不修改
+      base_url: $("set-ai-base").value.trim(),    // 空 = 按模型名自动识别
+      auto_base: true,
     });
     if (!r.ok) { alert("保存失败：" + (r.error || "")); return; }
     $("set-ai-key").value = "";
     await setLoad();
     renderSettings();
-    alert(r.configured ? "已保存。建议点「测试连接」验证一下。" : "已保存，但配置还不完整（地址 + 模型 + Key）。");
+    alert(r.configured
+      ? `已保存：${r.model} → ${r.base_url}\n建议点「测试连接」验证一下。`
+      : "已保存，但模型名认不出接口地址；请展开「高级」手填，或检查模型名拼写。");
     return;
   }
   if (e.target.id === "set-ai-test") {
@@ -1159,7 +1155,8 @@ $("set-body").addEventListener("click", async e => {
     const r = await setPost("/ai/test", {});
     btn.disabled = false;
     btn.textContent = old;
-    $("set-ai-note").innerHTML = r.ok
+    $("set-ai-status").style.display = "block";
+    $("set-ai-status").innerHTML = r.ok
       ? `✅ 连接正常 · 模型 <b>${esc(r.model)}</b> · ${r.ms} ms · 回执「${esc(r.reply || "")}」`
       : `❌ ${esc(r.error || "测试失败")}`;
     return;
