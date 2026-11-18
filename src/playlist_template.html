@@ -93,6 +93,14 @@
     display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   }
   .title { font-family: var(--serif); font-size: 17px; font-weight: 700; white-space: nowrap; }
+  .lib-stats {
+    font-size: 12.5px; color: var(--muted); white-space: nowrap;
+    padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px;
+    background: var(--card); font-variant-numeric: tabular-nums;
+  }
+  .lib-stats:empty { display: none; }
+  .lib-stats b { color: var(--ink); font-weight: 600; }
+  @media (max-width: 720px) { .lib-stats { display: none; } }
   .issue-sel { font-size: 13px; padding: 5px 8px; border: 1px solid var(--line);
                border-radius: 8px; background: var(--card); color: var(--ink);
                max-width: 190px; }
@@ -169,6 +177,12 @@
   .pl-head { display: flex; align-items: center; gap: 8px; }
   .pl-head > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pl-head .set-link { flex: none; font-size: 12px; }
+  .pl-toggle.on { color: var(--accent); font-weight: 600; }
+  .pl-tag {
+    flex: none; font-size: 10.5px; line-height: 1.6; padding: 0 5px; border-radius: 5px;
+    background: var(--accent-soft); color: var(--accent); font-weight: 600;
+    letter-spacing: .02em;
+  }
 
   /* 播放列表 */
   .pl-list { max-height: 72vh; overflow-y: auto; }
@@ -407,6 +421,7 @@
 <header>
   <div class="bar">
     <div class="title">🎧 Echo · 英语学习播放列表</div>
+    <span id="lib-stats" class="lib-stats" title="资料库规模"></span>
     <select id="issue" class="issue-sel hidden" title="切换期号"></select>
     <div class="spacer"></div>
     <button id="theme-btn" title="切换深色 / 浅色">🌙</button>
@@ -421,6 +436,7 @@
     <div class="panel">
       <div class="panel-head pl-head">
       <span>📋 播放列表 <span id="pl-count" class="hint"></span></span>
+      <button id="pl-intensive" class="set-link pl-toggle" title="只显示适合精读的社论（Leaders）">精读</button>
       <button id="pl-resume" class="set-link" title="跳到最近一次读到的地方">继续上次</button>
     </div>
       <div class="pl-list" id="pl-list"></div>
@@ -1130,6 +1146,8 @@ async function pgSet(id, done) {
   }
 }
 
+let onlyIntensive = false;      // 只看适合精读的社论
+
 // ---- 阅读位置：每篇读到第几句，回来接着读 ----
 const POS_KEY = "echo_positions";
 let positions = {};
@@ -1342,8 +1360,19 @@ async function openSettings() {
 }
 
 // ---- 渲染 ----
+// 适合精读：社论（Leaders）——短、观点密集、语言最精炼
+function isIntensive(ar) {
+  return String((ar && ar.section) || "").trim().toLowerCase() === "leaders";
+}
+
+function intensiveCount() {
+  return ARTICLES.filter(isIntensive).length;
+}
+
 function renderPlaylist() {
-  $("pl-list").innerHTML = ARTICLES.map((ar, k) => {
+  const shown = ARTICLES.map((ar, k) => ({ ar: ar, k: k }))
+    .filter(x => !onlyIntensive || isIntensive(x.ar) || x.k === a);
+  $("pl-list").innerHTML = shown.map(({ ar, k }) => {
     const done = !!progress[ar.id];
     const pos = positions[ar.id];
     const total = ar.sentences.length;
@@ -1351,11 +1380,15 @@ function renderPlaylist() {
     const read = started ? Math.min(pos.i + 1, total) : 0;
     return `<div class="pl-item${done ? " done" : ""}${started ? " started" : ""}" data-a="${k}">
        <span class="pl-idx">${done ? "✓" : (k + 1)}</span>
+       ${isIntensive(ar) ? '<span class="pl-tag">精读</span>' : ""}
        <span class="pl-label">${esc(ar.label)}</span>
        <span class="pl-n">${started ? `<b>${read}</b>/${total} 句` : `${total} 句`}</span>
      </div>`;
   }).join("");
-  $("pl-count").textContent = `${ARTICLES.length} 篇 · 已完成 ${pgDoneCount()}`;
+  $("pl-count").textContent = onlyIntensive
+    ? `精读 ${intensiveCount()} / ${ARTICLES.length} 篇`
+    : `${ARTICLES.length} 篇 · 已完成 ${pgDoneCount()}`;
+  $("pl-intensive").classList.toggle("on", onlyIntensive);
 }
 
 function renderArticle() {
@@ -1367,7 +1400,9 @@ function renderArticle() {
        <div class="vw-mean">${esc(v.meaning)}</div>
        <div class="vw-ex">${esc(v.example)}</div>
      </div>`).join("");
-  document.querySelectorAll(".pl-item").forEach((el, k) => el.classList.toggle("active", k === a));
+  // 用 data-a 判断，过滤「只看精读」时 DOM 顺序与文章序号不一致
+  document.querySelectorAll(".pl-item").forEach(el =>
+    el.classList.toggle("active", Number(el.dataset.a) === a));
   $("sents-head").textContent = `${art().label} · 逐句 · 点击跳转`;
   updateMarkBtn();
   if (lastStatus) applyStatus(lastStatus);
@@ -1626,6 +1661,13 @@ function resumeLast() {
 
 $("pl-resume").addEventListener("click", resumeLast);
 
+$("pl-intensive").addEventListener("click", () => {
+  onlyIntensive = !onlyIntensive;
+  renderPlaylist();
+  const cur = document.querySelector(".pl-item.active");
+  if (cur) cur.scrollIntoView({ block: "nearest" });
+});
+
 // ---- 句中译事件 ----
 $("zh-toggle").addEventListener("click", toggleFocusZh);
 
@@ -1668,6 +1710,27 @@ $("mark-done").addEventListener("click", async () => {
   renderArticle();
   setActive(idx);
 });
+
+// ---- 资料库规模（期数 / 篇数 / 句数）----
+const fmtNum = n => Number(n || 0).toLocaleString("en-US");
+const fmtWan = n => (n >= 10000 ? (n / 10000).toFixed(0) + " 万" : fmtNum(n));
+
+async function loadStats(tries = 0) {
+  try {
+    const r = await fetch("/stats", { cache: "no-store" });
+    if (!r.ok) return;
+    const d = await r.json();
+    const el = $("lib-stats");
+    if (!el) return;
+    const parts = [`<b>${fmtNum(d.issues)}</b> 期`, `<b>${fmtNum(d.articles)}</b> 篇`];
+    if (d.sentences) parts.push(`<b>${fmtWan(d.sentences)}</b>句`);
+    el.innerHTML = parts.join(" · ");
+    el.title = `资料库：${fmtNum(d.issues)} 期 / ${fmtNum(d.articles)} 篇`
+             + (d.sentences ? ` / ${fmtNum(d.sentences)} 句` : "");
+    // 句数还在后台统计时，稍后再补一次
+    if (!d.ready && tries < 30) setTimeout(() => loadStats(tries + 1), 700);
+  } catch (e) { /* 静态模式没有该接口，忽略 */ }
+}
 
 // ---- 深色 / 浅色主题 ----
 const THEME_KEY = "echo_theme";
@@ -1815,6 +1878,7 @@ Promise.all([vnLoad(), pgLoad(), posLoad()]).then(() => {
   }
 });
 setLoad().then(ok => { if (!ok) $("set-open").style.display = "none"; });
+loadStats();
 </script>
 </body>
 </html>

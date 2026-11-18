@@ -1118,12 +1118,49 @@ def art_payload(art):
     """给前端的文章数据（audio 走全局文章号 ai，切期号也不会乱）。"""
     return {
         "title": art["title"], "label": art["label"], "id": art["id"],
-        "vocab": art["vocab"], "ai": art["ai"],
+        "section": art.get("section") or "", "vocab": art["vocab"], "ai": art["ai"],
         "sentences": [
             {"text": s["text"], "audio": f"/audio/{art['ai']}/{si}.mp3"}
             for si, s in enumerate(art["sentences"])
         ],
     }
+
+
+# ---- 资料库规模统计（期数 / 篇数 / 句数）----
+LIB_STATS = {"issues": 0, "articles": 0, "sentences": 0, "ready": False}
+_stats_lock = threading.Lock()
+
+
+def count_sentences(root: Path) -> int:
+    """数一遍 md 里的 <div class="original">，即总句数（本机 18k 篇约 1 秒）。"""
+    total = 0
+    for f in Path(root).rglob("*.md"):
+        if f.name.startswith("."):
+            continue
+        try:
+            total += f.read_bytes().count(b'<div class="original">')
+        except OSError:
+            continue
+    return total
+
+
+def warm_stats(lib):
+    """启动后在后台算一次，页面加载时先显示期数/篇数，句数算完再补上。"""
+    def run():
+        try:
+            with _stats_lock:
+                LIB_STATS["issues"] = len(getattr(lib, "issues", []) or []) or 1
+                LIB_STATS["articles"] = len(getattr(lib, "flat", []) or [])
+            root = getattr(lib, "root", None)
+            sent = count_sentences(root) if root else 0
+            with _stats_lock:
+                LIB_STATS["sentences"] = sent
+                LIB_STATS["ready"] = True
+        except Exception:  # noqa: BLE001
+            with _stats_lock:
+                LIB_STATS["ready"] = True
+
+    threading.Thread(target=run, daemon=True).start()
 
 
 def issue_status(arts):
@@ -1566,6 +1603,9 @@ def make_handler(page_html, lib, engine, status_payload, on_issue_loaded=None):
             elif path == "/status":
                 self._json_out(status_payload(
                     parse_qs(parsed.query).get("issue", [""])[0]))
+            elif path == "/stats":
+                with _stats_lock:
+                    self._json_out(dict(LIB_STATS))
             elif path == "/issues":
                 self._json_out({"issues": lib.issues})
             elif path.startswith("/issue/"):
@@ -1788,6 +1828,7 @@ def run_serve(args):
             for s in art["sentences"]:
                 engine.schedule(s["text"], s["path"])
 
+    warm_stats(lib)
     Handler = make_handler(page_html, lib, engine, lib.status,
                            on_issue_loaded=prefetch_issue)
     port = find_free_port(args.port)
