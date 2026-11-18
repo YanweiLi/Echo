@@ -106,6 +106,9 @@
 
   .panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: 0 2px 10px rgba(28,27,24,.04); }
   .panel-head { padding: 12px 16px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); }
+  .pl-head { display: flex; align-items: center; gap: 8px; }
+  .pl-head > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pl-head .set-link { flex: none; font-size: 12px; }
 
   /* 播放列表 */
   .pl-list { max-height: 72vh; overflow-y: auto; }
@@ -272,6 +275,9 @@
   .vn-empty { padding: 28px 16px; text-align: center; color: var(--muted); font-size: 14px; }
 
   /* ---- 学习进度（标记完成）---- */
+  .pl-item.started .pl-n b { color: var(--accent); font-weight: 700; }
+  .resume-tip { flex-basis: 100%; margin: 8px 0 0 38px; font-size: 12.5px;
+                color: var(--accent); }
   .pl-item.done .pl-label { color: var(--muted); }
   .pl-item.done .pl-idx { color: #2e7d32; font-weight: 700; }
   .mark-btn {
@@ -340,7 +346,10 @@
 <div class="layout">
   <aside>
     <div class="panel">
-      <div class="panel-head">📋 播放列表 <span id="pl-count" class="hint"></span></div>
+      <div class="panel-head pl-head">
+      <span>📋 播放列表 <span id="pl-count" class="hint"></span></span>
+      <button id="pl-resume" class="set-link" title="跳到最近一次读到的地方">继续上次</button>
+    </div>
       <div class="pl-list" id="pl-list"></div>
     </div>
   </aside>
@@ -1047,6 +1056,79 @@ async function pgSet(id, done) {
   }
 }
 
+// ---- 阅读位置：每篇读到第几句，回来接着读 ----
+const POS_KEY = "echo_positions";
+let positions = {};
+let posServer = false;
+let posTimer = null;
+
+async function posLoad() {
+  try {
+    const r = await fetch("/positions", { cache: "no-store" });
+    if (r.ok) { positions = (await r.json()).positions || {}; posServer = true; return; }
+  } catch (e) { /* 静态模式，用 localStorage */ }
+  try { positions = JSON.parse(localStorage.getItem(POS_KEY) || "{}") || {}; } catch (e) { positions = {}; }
+}
+
+function posSaveLocal() {
+  try { localStorage.setItem(POS_KEY, JSON.stringify(positions)); } catch (e) {}
+}
+
+function posOf(k) {
+  const rec = positions[ARTICLES[k] && ARTICLES[k].id];
+  return rec && typeof rec.i === "number" ? rec : null;
+}
+
+// 与服务端 datetime.now().isoformat() 对齐（本地时间，不带时区）
+function nowStamp() {
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` +
+         `T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+async function posSet(i) {
+  const ar = ARTICLES[a];
+  if (!ar) return;
+  positions[ar.id] = { i: i, n: ar.sentences.length, at: nowStamp() };
+  if (posServer) {
+    try {
+      const r = await fetch("/positions/set", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: ar.id, i: i, n: ar.sentences.length }),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        if (j && j.ok) positions[ar.id] = { i: j.i, n: j.n, at: j.at };
+      }
+    } catch (e) {}
+  } else {
+    posSaveLocal();
+  }
+}
+
+function posQueue(i) {
+  clearTimeout(posTimer);
+  posTimer = setTimeout(() => posSet(i), 600);
+}
+
+// 关标签 / 切到后台时立刻落盘，避免防抖窗口内丢掉最后一次
+function posFlush() {
+  clearTimeout(posTimer);
+  const ar = ARTICLES[a];
+  if (!ar) return;
+  if (!posServer) { posSaveLocal(); return; }
+  try {
+    const body = JSON.stringify({ id: ar.id, i: idx, n: ar.sentences.length });
+    navigator.sendBeacon("/positions/set",
+      new Blob([body], { type: "application/json" }));
+  } catch (e) { posSaveLocal(); }
+}
+
+window.addEventListener("pagehide", posFlush);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") posFlush();
+});
+
 function pgDone(k) { return !!progress[ARTICLES[k].id]; }
 function pgDoneCount() { return ARTICLES.filter(ar => progress[ar.id]).length; }
 
@@ -1189,10 +1271,14 @@ async function openSettings() {
 function renderPlaylist() {
   $("pl-list").innerHTML = ARTICLES.map((ar, k) => {
     const done = !!progress[ar.id];
-    return `<div class="pl-item${done ? " done" : ""}" data-a="${k}">
+    const pos = positions[ar.id];
+    const total = ar.sentences.length;
+    const started = pos && typeof pos.i === "number" && pos.i > 0 && !done;
+    const read = started ? Math.min(pos.i + 1, total) : 0;
+    return `<div class="pl-item${done ? " done" : ""}${started ? " started" : ""}" data-a="${k}">
        <span class="pl-idx">${done ? "✓" : (k + 1)}</span>
        <span class="pl-label">${esc(ar.label)}</span>
-       <span class="pl-n">${ar.sentences.length}句</span>
+       <span class="pl-n">${started ? `<b>${read}</b>/${total} 句` : `${total} 句`}</span>
      </div>`;
   }).join("");
   $("pl-count").textContent = `${ARTICLES.length} 篇 · 已完成 ${pgDoneCount()}`;
@@ -1235,6 +1321,7 @@ function setActive(i) {
   const cur = document.querySelector(".sent.active");
   if (cur) cur.scrollIntoView({ block: "center", behavior: "smooth" });
   syncZhToggle();
+  posQueue(i);
   $("counter").textContent = `文章 ${a + 1}/${ARTICLES.length} · 句 ${i + 1}/${art().sentences.length}`;
   $("progress").style.width = `${((globalIndex() + 1) / totalSentences) * 100}%`;
 }
@@ -1251,7 +1338,35 @@ function playArticle(ai, si) {
   if (ai < 0 || ai >= ARTICLES.length) return;
   a = ai;
   renderArticle();
-  play(si !== undefined ? si : 0);
+  if (si !== undefined) { play(si); return; }
+  const pos = positions[ARTICLES[ai].id];
+  const want = pos && typeof pos.i === "number" ? pos.i : 0;
+  if (want > 0 && want < ARTICLES[ai].sentences.length) {
+    resumeAt(want);
+    return;
+  }
+  play(0);
+}
+
+/** 跳到上次读到的句子：停下等你，不自动播 */
+function resumeAt(i) {
+  audio.pause();
+  playing = false;
+  audio.src = ARTICLES[a].sentences[i].audio;
+  audio.playbackRate = parseFloat($("speed").value);
+  renderPlay();
+  setActive(i);
+  flashResume(i);
+}
+
+function flashResume(i) {
+  const row = document.querySelector(`#sents .sent[data-i="${i}"]`);
+  if (!row) return;
+  const tip = document.createElement("div");
+  tip.className = "resume-tip";
+  tip.textContent = `↩ 上次读到第 ${i + 1} 句，点击播放继续`;
+  row.appendChild(tip);
+  setTimeout(() => tip.remove(), 4000);
 }
 
 function lastSentence() { return idx >= art().sentences.length - 1; }
@@ -1295,7 +1410,8 @@ audio.addEventListener("ended", () => {
 // ---- 事件 ----
 $("pl-list").addEventListener("click", e => {
   const item = e.target.closest(".pl-item");
-  if (item) playArticle(parseInt(item.dataset.a, 10), 0);
+  // 不传句号：有存档就回到上次读到的位置，没有才从第 1 句开始
+  if (item) playArticle(parseInt(item.dataset.a, 10));
 });
 
 $("sents").addEventListener("click", e => {
@@ -1382,6 +1498,27 @@ $("lookup-save").addEventListener("click", () => {
             note: c.note, src: c.src, a: c.a, i: c.i });
   }
 });
+
+// ---- 继续上次读到的位置 ----
+function mostRecentPos() {
+  let best = null;
+  ARTICLES.forEach((ar, k) => {
+    const rec = positions[ar.id];
+    // 只认「真的读过」的位置（第 1 句不算），否则点一下就覆盖了上次进度
+    if (!rec || typeof rec.i !== "number" || rec.i <= 0 || progress[ar.id]) return;
+    if (!best || String(rec.at) > String(best.rec.at)) best = { k: k, rec: rec };
+  });
+  return best;
+}
+
+function resumeLast() {
+  const best = mostRecentPos();
+  if (!best) return;
+  playArticle(best.k, best.rec.i);
+  renderPlaylist();
+}
+
+$("pl-resume").addEventListener("click", resumeLast);
 
 // ---- 句中译事件 ----
 $("zh-toggle").addEventListener("click", toggleFocusZh);
@@ -1539,10 +1676,15 @@ renderArticle();
 setActive(0);
 initIssues();
 pollStatus();
-Promise.all([vnLoad(), pgLoad()]).then(() => {
+Promise.all([vnLoad(), pgLoad(), posLoad()]).then(() => {
   renderVocabBook();
   renderPlaylist();
   updateMarkBtn();
+  const pos = positions[ARTICLES[a].id];
+  if (pos && typeof pos.i === "number" && pos.i > 0 && pos.i < art().sentences.length) {
+    resumeAt(pos.i);
+    renderPlaylist();
+  }
 });
 setLoad().then(ok => { if (!ok) $("set-open").style.display = "none"; });
 </script>

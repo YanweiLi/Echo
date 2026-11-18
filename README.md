@@ -308,6 +308,19 @@ python src/player.py --dir "/Volumes/EAGET忆捷/英语学习/Economist/2026" --
   - 静态模式 → 浏览器 `localStorage`
 - **误点「清空」也能找回**：清空前会自动存一份到 `data/backup/vocab-<时间>.json`（保留最近 10 份）
 
+## 阅读位置记忆（接着上次读） 🔖
+
+一篇读不完没关系，Echo 会记住每篇读到第几句：
+
+- 朗读/点击句子时自动记录（防抖 600 ms，关标签页时也会立刻落盘）
+- 左侧列表显示已读进度：**`12/57 句`**（没读过的不显示，读完打 ✓）
+- 再点开这篇 → **停在上次那一句**，不自动播放，句子下方提示「↩ 上次读到第 12 句」
+- 列表标题栏的 **「继续上次」** → 直接跳到最近一次读到的位置（跨文章、跨期号）
+- 已标记完成的文章不参与「继续上次」
+
+存储位置：`data/positions.json`（`{篇 id: {i, n, at}}`，i 从 0 开始），
+跟随「数据目录」设置；静态模式（直接打开 html）退化为 `localStorage`。
+
 ## 中文翻译（点击才显示） 🈶
 
 默认**不显示任何中文**，避免边听边「偷看」：
@@ -426,7 +439,8 @@ data/
 ├── config.json        ← 搜索路径，以及可选的 AI 配置（ai_model / ai_api_key / 可选 ai_base_url）与 mymemory_email
 ├── vocab.json         ← 生词本
 ├── backup/            ← 清空生词本前的自动备份（保留最近 10 份）
-├── progress.json      ← 学习进度
+├── progress.json      ← 学习进度（是否读完）
+├── positions.json     ← 每篇读到第几句（接着上次读）
 ├── exports/           ← 🖨 导出的 A4 讲义（HTML + PDF）
 ├── translations.json  ← 句子中译缓存（按需生成）
 └── explains.json      ← AI 拆解缓存（按需生成）

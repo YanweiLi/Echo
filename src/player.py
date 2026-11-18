@@ -89,7 +89,8 @@ def resolve_data_dir():
 DATA_DIR = resolve_data_dir()
 CONFIG_FILE = DATA_DIR / "config.json"          # 搜索路径
 VOCAB_FILE = DATA_DIR / "vocab.json"            # 生词本
-PROGRESS_FILE = DATA_DIR / "progress.json"      # 学习进度
+PROGRESS_FILE = DATA_DIR / "progress.json"      # 学习进度（是否读完）
+POSITIONS_FILE = DATA_DIR / "positions.json"    # 每篇读到第几句
 TRANSLATIONS_FILE = DATA_DIR / "translations.json"  # 句子中译缓存
 EXPLAINS_FILE = DATA_DIR / "explains.json"          # AI 句子拆解缓存
 try:
@@ -100,7 +101,8 @@ except OSError:
 
 def set_data_dir(new_dir):
     """更改数据目录（传空字符串则恢复默认），并刷新全局路径。"""
-    global DATA_DIR, CONFIG_FILE, VOCAB_FILE, PROGRESS_FILE, TRANSLATIONS_FILE
+    global DATA_DIR, CONFIG_FILE, VOCAB_FILE, PROGRESS_FILE, POSITIONS_FILE
+    global TRANSLATIONS_FILE
     global EXPLAINS_FILE
     cfg = load_bootstrap()
     new_dir = (new_dir or "").strip()
@@ -113,6 +115,7 @@ def set_data_dir(new_dir):
     CONFIG_FILE = DATA_DIR / "config.json"
     VOCAB_FILE = DATA_DIR / "vocab.json"
     PROGRESS_FILE = DATA_DIR / "progress.json"
+    POSITIONS_FILE = DATA_DIR / "positions.json"
     TRANSLATIONS_FILE = DATA_DIR / "translations.json"
     EXPLAINS_FILE = DATA_DIR / "explains.json"
     # 缓存对象换到新目录并重新加载
@@ -120,6 +123,8 @@ def set_data_dir(new_dir):
     EXPLAIN_CACHE.path = EXPLAINS_FILE
     TR_CACHE.reset()
     EXPLAIN_CACHE.reset()
+    POSITION_CACHE.path = POSITIONS_FILE
+    POSITION_CACHE.reset()
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
     except OSError:
@@ -194,6 +199,7 @@ def settings_payload():
         "vocab_file": str(VOCAB_FILE),
         "vocab_backup_dir": str(DATA_DIR / "backup"),
         "progress_file": str(PROGRESS_FILE),
+        "positions_file": str(POSITIONS_FILE),
         "translations_file": str(TRANSLATIONS_FILE),
         "translated_count": len(TR_CACHE),
         "explains_file": str(EXPLAINS_FILE),
@@ -423,6 +429,7 @@ class JsonCache:
 
 TR_CACHE = JsonCache(TRANSLATIONS_FILE, limit=100000)
 EXPLAIN_CACHE = JsonCache(EXPLAINS_FILE, limit=5000)
+POSITION_CACHE = JsonCache(POSITIONS_FILE, limit=30000)   # 篇 id → {i, n, at}
 
 
 def load_translations():
@@ -850,6 +857,28 @@ def progress_mark(aid, done):
         PROGRESS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n",
                                  encoding="utf-8")
         return data
+
+def positions_all():
+    """{篇 id: {i: 句子下标, n: 总句数, at: 时间}}"""
+    return POSITION_CACHE.all()
+
+
+def position_set(aid, i, n=0):
+    """记录某篇读到第几句（i 从 0 开始）。"""
+    aid = str(aid or "").strip()
+    try:
+        i = max(0, int(i))
+        n = max(0, int(n or 0))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "参数无效"}
+    if not aid:
+        return {"ok": False, "error": "缺少文章 id"}
+    if n and i >= n:
+        i = n - 1
+    rec = {"i": i, "n": n, "at": datetime.now().isoformat(timespec="seconds")}
+    POSITION_CACHE.put(aid, rec)
+    return {"ok": True, "id": aid, **rec}
+
 
 # OCR 连字 / 特殊字符规范化
 LIGATURES = {
@@ -1583,6 +1612,12 @@ def make_handler(page_html, lib, engine, status_payload, on_issue_loaded=None):
                 self._json_out({"items": vocab_clear()})
             elif path == "/progress":
                 self._json_out({"completed": load_progress()})
+            elif path == "/positions":
+                self._json_out({"positions": positions_all()})
+            elif path == "/positions/set":
+                body = self._read_json()
+                self._json_out(position_set(body.get("id", ""), body.get("i", 0),
+                                           body.get("n", 0)))
             elif path == "/progress/mark":
                 body = self._read_json()
                 self._json_out({"completed": progress_mark(body.get("id", ""),
