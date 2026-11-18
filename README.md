@@ -12,12 +12,16 @@ Echo/
 │   ├── player.py                   主程序
 │   ├── template.html               单篇播放器模板
 │   ├── playlist_template.html      播放列表模板
-│   ├── dictionary.json             内置词典（511 词：中文 / 音标 / 难度）
+│   ├── printing.py                 A4 讲义排版 + PDF 导出（App 与 CLI 共用）
+│   ├── vocab.py                    生词标注：四级 / 六级 / 超纲分层
+│   ├── wordbank.json               词库（约 1.4 MB，由 build_wordbank.py 生成）
+│   ├── dictionary.json             人工校订层（511 词：中文 / 音标）
 │   └── macos/                      macOS 原生外壳（Swift + WKWebView）
 ├── tools/                      ← 🛠 转换与校验工具
 │   ├── epub2md.py                  EPUB → 中间 md（含整期可打印 HTML）
 │   ├── verify_md.py                md ↔ EPUB 逐句回查校验
-│   ├── extract_dict.py             从历史脚本抽取内置词典
+│   ├── build_wordbank.py           从 ECDICT 构建四六级词库
+│   ├── extract_dict.py             从历史脚本抽取内置词典（校订层）
 │   └── make_icon.swift             应用图标生成器
 ├── launch.command              ← ⭐ 双击启动（网页版）
 ├── build-app.command           ← ⭐ 编译 macOS App
@@ -28,7 +32,7 @@ Echo/
 │   ├── md/<期号>/*.md              资料库（Echo 输入 + 可打印）
 │   ├── print/<期号>.html           整期合并的可打印 HTML
 │   └── <文章>/sent_XXXX.mp3        逐句音频
-├── data/                       ← 🔒 个人数据（config / vocab / progress，不入库）
+├── data/                       ← 🔒 个人数据（config / vocab / progress / exports，不入库）
 ├── .venv/                      ← 运行环境（不入库）
 └── README.md / LICENSE / .gitignore
 ```
@@ -142,7 +146,7 @@ EPUB ──[tools/epub2md.py]──> dist/md/<期号>/*.md ──┬──> Echo
    + `.vocab`（`词 /ipa/ 释义<br>`）
 2. `## 词汇速查表` 必须是 **4 列表格** `| 单词 | 音标 | 释义 | 示例 |`
    （`extract_vocab()` 要求 `len(cells) >= 4`，3 列会读不出侧栏生词）
-3. 难度分组 `### ⭐ / ⭐⭐ / ⭐⭐⭐`（Echo 忽略，打印时有用）
+3. 难度分组 `### CET-4 四级 / CET-6 六级 / 超纲`（Echo 忽略，打印时有用）
 4. 不加 YAML front-matter，不生成「中文翻译」章节
 
 ## 多期浏览（期号 → 文章） 🗓
@@ -160,14 +164,51 @@ EPUB ──[tools/epub2md.py]──> dist/md/<期号>/*.md ──┬──> Echo
 
 ## 打印学习资料 🖨
 
+### 在 App 里一键导出（推荐）
+
+顶栏的 **🖨** 按钮可直接导出 A4 讲义 PDF（生成在 `data/exports/`，随后「在 Finder 中显示」或「用预览打开」）：
+
+- **本周精选**：Leaders 优先 + 各栏目首篇，6 篇左右 ≈ 16 页（8 张纸双面）
+- **当前这篇**：只导出正在读的那一篇，1–3 页
+- **整期全部**：本期所有文章（约 200+ 页，只在需要时用）
+
+排版与命令行版一致：封面目录 + 每篇从新页开始 + 句号编号 + 生词加粗点线 + 篇末词汇速查。
+PDF 由本机 Chrome/Edge 无头模式生成；两者都没装时会退化为可打印 HTML（用浏览器 ⌘P 另存 PDF）。
+
+### 命令行
+
 `--print` 会为每期生成一份自包含 HTML（`dist/print/<期号>.html`）：
 目录 + 每篇强制分页 + 原文与生词双栏 + 词汇速查表。
 
 - 浏览器打开 → `⌘P` → 选 A4、双面，即可当纸质资料
 - 单篇也可以直接打印对应的 md（VS Code 预览 / Typora 等）
 
+### 每周精选 A4 版（推荐）
+
+整期约 300 页，不适合日常打印。`--week` 只挑 6–8 篇（Leaders 优先 + 各栏目首篇），
+每篇从新页开始，约 **16 页 A4**，可直接双面装订：
+
+```bash
+# 生成每周精选 HTML + PDF（PDF 需要本机装有 Chrome 或 Edge）
+.venv/bin/python tools/epub2md.py "<EPUB>" --week --pdf
+
+# 先看可选篇号（篇号即文件名前缀）
+.venv/bin/python tools/epub2md.py "<EPUB>" --list-picks
+
+# 手动指定篇目
+.venv/bin/python tools/epub2md.py "<EPUB>" --week --pick 009,010,011 --pdf
+
+# 只标注中级/高级词（默认含初级）
+.venv/bin/python tools/epub2md.py "<EPUB>" --week --tiers 4,6 --pdf
+```
+
+- 输出：`dist/print/<期号>_week.html`、`dist/pdf/<期号>_week.pdf`
+- 正文每句带编号，生词加粗 + 点状下划线（黑白打印也清楚），篇末 3 栏词汇速查
+- 打印：A4 · 100% · 双面长边翻转 · 关闭页眉页脚
+
 ## 功能
 
+- **🖨 一键导出 A4 讲义**：顶栏按钮选「本周精选 / 当前这篇 / 整期」，直接生成打印用 PDF（见「打印学习资料」）
 - **全屏应用式布局**：顶栏 + 三栏（播放列表 / 正文 / 生词）铺满整个窗口，各栏内部滚动，页面本身不滚动；
   底部播放条始终可见且不会遮挡内容（窄屏自动退化为单列滚动）
 - 解析 md 中 `<div class="original">…</div>` 的英文正文，自动断句
@@ -359,15 +400,64 @@ data/
 ├── vocab.json         ← 生词本
 ├── backup/            ← 清空生词本前的自动备份（保留最近 10 份）
 ├── progress.json      ← 学习进度
+├── exports/           ← 🖨 导出的 A4 讲义（HTML + PDF）
 ├── translations.json  ← 句子中译缓存（按需生成）
 └── explains.json      ← AI 拆解缓存（按需生成）
 ```
 
+## 生词生成算法 🔤
+
+原文里的生词标注由 [src/vocab.py](src/vocab.py) 统一计算（App、导出讲义、EPUB→md 共用同一套结果）。
+
+### 词库
+
+`src/wordbank.json` 由 [tools/build_wordbank.py](tools/build_wordbank.py) 从
+[ECDICT](https://github.com/skywind3000/ECDICT)（MIT）生成：
+
+| 档位 | 来源 | 词数 |
+| --- | --- | --- |
+| `4` 四级 | ECDICT `cet4` 标签（四六级都收的算四级） | 3844 |
+| `6` 六级 | 仅 `cet6` 标签 | 1952 |
+| `0` 超纲 | 四六级之外，且 BNC 词频排名在 2000–15000 之间 | 7188 |
+
+重建词库（首次会下载 63 MB 的 ecdict.csv 到 `/tmp`，之后可复用）：
+
+```bash
+.venv/bin/python tools/build_wordbank.py            # 或 --csv /path/to/ecdict.csv
+```
+
+### 匹配与过滤
+
+1. **分词**：`[A-Za-z][A-Za-z'-]*`，去掉 `'s` 等所有格后缀
+2. **还原原形**：变形表（ECDICT `exchange`，约 1.6 万条）→ 直接命中 → 规则还原
+   （`-ies/-ed/-ing/-er/-est/-ly`、双写辅音等）。所以 `escalated → escalate`、
+   `countries → country`，词汇表里不会出现一堆 `-ing`/`-ed` 变体
+3. **过滤噪声**：
+   - 词频排名 ≤ 1500 视为已会 → 不标（`about` 63、`political` 292、`government` 124 …）
+   - 超纲词要求 ≥4 字母，且全文出现过小写形式 → 排除 `Trump`、`Kremlin`、`Islamic` 这类专名
+   - 派生词并到词根（`giving → give`、`longer → long`）；同族词同时命中时只留词根
+4. **配额**：每档最多 四级 18 / 六级 14 / 超纲 10，全篇上限 40 条；
+   每句最多 3 个上标，越难越优先 → 词汇表稳定排进一页
+
+结果分三档展示：正文里生词**加粗 + 点状下划线 + 上标编号**，篇末「词汇速查」按
+`CET-4 四级 → CET-6 六级 → 超纲` 分节，编号与正文上标一一对应；App 侧栏生词条带档位徽标。
+
+只标某一档：
+
+```bash
+.venv/bin/python tools/epub2md.py "<EPUB>" --week --tiers 0    # 只看超纲词
+.venv/bin/python tools/epub2md.py "<EPUB>" --tiers 4,6        # 只看四六级
+```
+
+> 说明：ECDICT 是众包数据，个别音标/释义会有偏差（如 `liberty`），
+> 这部分由 `src/dictionary.json` 的人工条目覆盖；仍不准确的可在该文件里补条目。
+
 ## 说明
 
 - **推荐数据源**是 EPUB 转出的 md（`dist/md`）；PDF 转出的老 md 仍可直接播放，两种格式并存无冲突。
-- 内置词典 `src/dictionary.json`（511 词：中文 / 音标 / 难度）用于原文生词红标与词汇速查表；
-  由 `tools/extract_dict.py` 从历史脚本抽取，源脚本只读。
+- **生词标注**见「生词生成算法」一节：词库 `src/wordbank.json`（约 1.4 MB，
+  四级 3844 / 六级 1952 / 超纲 7188 + 1.6 万条变形），`src/dictionary.json`（511 词）
+  作为人工校订层覆盖音标/释义。
 - md 文档中的 OCR 连字（如 `ﬁ`、`ﬂ`）会被自动规范化为 `fi`、`fl`；EPUB 转换的 md 不会出现该问题。
 - 音质与音量取决于 edge-tts 服务；离线时可用系统 `say` 命令作为替代（本项目默认使用 edge-tts）。
 - 查词与中文翻译使用免费的 Datamuse + MyMemory 接口，机器翻译偶尔不够精准，可交叉参考侧栏生词表（来自文档）。

@@ -6,7 +6,9 @@
 输出：src/dictionary.json
       { "mediate": {"zh": "调解，斡旋", "ipa": "/ˈmiːdieɪt/", "level": 2} }
 
-用途：① EPUB→md 时做生词标注 ② Echo 查词「本地优先」
+用途：作为 src/wordbank.json 的**人工校订覆盖层**——这些词的音标/释义
+      比 ECDICT 更准确，src/vocab.py 加载时会用它们覆盖同名词条。
+      （词库主体由 tools/build_wordbank.py 生成）
 """
 
 import importlib.util

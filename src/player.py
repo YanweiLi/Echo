@@ -35,6 +35,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlencode, urlparse
 
+import printing  # 同目录：A4 讲义排版与 PDF 导出（与 tools/epub2md.py 共用）
+import vocab as vocablib  # 同目录：四六级 / 超纲分层标注
+
 try:
     import edge_tts
 except ImportError:
@@ -247,6 +250,112 @@ def reveal_path(p):
         subprocess.Popen(["open", str(path)])
     else:
         subprocess.Popen(["open", "-R", str(path)])
+    return {"ok": True}
+
+
+# ---- A4 讲义导出（UI「🖨」→ 每周精选 / 当前篇 / 整期）----
+def export_dir():
+    d = DATA_DIR / "exports"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def annotate_article(art):
+    """给文章算出分层生词（marks + terms），结果缓存在 art 上。"""
+    if art.get("marks") is not None and art.get("terms") is not None:
+        return art["marks"], art["terms"]
+    paragraphs = art.get("paragraphs") or [[s["text"]] for s in art["sentences"]]
+    marks, terms = vocablib.annotate(paragraphs)
+    art["paragraphs"] = paragraphs
+    art["marks"], art["terms"] = marks, terms
+    return marks, terms
+
+
+def article_vocab(art):
+    """给前端「生词速查」用的列表（与打印讲义同一套词）。"""
+    _marks, terms = annotate_article(art)
+    return [{"word": t["word"], "phonetic": t["ipa"], "meaning": t["zh"],
+             "example": t.get("example", ""), "tier": t["tier"]} for t in terms]
+
+
+def handout_article(art):
+    """内部文章结构 → printing.build_week_html 需要的格式。"""
+    marks, terms = annotate_article(art)
+    paragraphs, marks = printing.merge_paragraphs(art["paragraphs"], marks)
+    return {
+        "title": art["title"],
+        "section": art.get("section") or "",
+        "date": art.get("date") or "",
+        "standfirst": art.get("standfirst") or "",
+        "paragraphs": paragraphs,
+        "marks": marks,
+        "glossary": [{"word": t["word"], "ipa": t["ipa"], "zh": t["zh"],
+                      "tier": t["tier"], "n": t["n"]} for t in terms],
+    }
+
+
+def export_pdf(lib, req):
+    """按范围生成 A4 讲义 HTML + PDF，返回文件路径（都不弹窗，交给前端决定）。"""
+    scope = str(req.get("scope") or "weekly")
+    try:
+        ai = int(req.get("ai") or 0)
+    except (TypeError, ValueError):
+        ai = 0
+    try:
+        art = lib.ensure(ai)
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"读取文章失败：{e}"}
+
+    if scope == "article" or not art.get("issue"):
+        arts = [art]
+    else:
+        metas = [m for m in lib.flat if m.get("issue") == art["issue"]]
+        arts = [lib.ensure(m["ai"]) for m in metas]
+        if scope != "issue":
+            arts = printing.pick_week_articles(arts)
+
+    if not arts:
+        return {"ok": False, "error": "没有可导出的文章"}
+
+    date_txt = next((a.get("date") for a in arts if a.get("date")), "")
+    label = "The Economist" + (f" · {date_txt}" if date_txt else
+                               (f" · {art['issue']}" if art.get("issue") else ""))
+    stem = art.get("issue") or art.get("stem") or "echo"
+    stem = re.sub(r"[^0-9A-Za-z._-]+", "_", stem)
+    base = f"{stem}_{scope if scope != 'issue' else 'all'}"
+    out_dir = export_dir()
+    html_path = out_dir / f"{base}.html"
+    pdf_path = out_dir / f"{base}.pdf"
+
+    html_path.write_text(
+        printing.build_week_html([handout_article(a) for a in arts], label),
+        encoding="utf-8")
+    pdf_ok = printing.html_to_pdf(html_path, pdf_path)
+
+    return {
+        "ok": True, "pdf_ok": pdf_ok,
+        "html": str(html_path),
+        "pdf": str(pdf_path) if pdf_ok else "",
+        "articles": len(arts),
+        "sentences": sum(len(a["sentences"]) for a in arts),
+    }
+
+
+def open_export(p, reveal=False):
+    """打开已导出的讲义（用默认程序 / 在 Finder 中显示），仅限导出目录。"""
+    p = str(p or "").strip()
+    if not p:
+        return {"ok": False, "error": "路径为空"}
+    try:
+        target = Path(p).expanduser().resolve()
+        base = export_dir().resolve()
+    except OSError:
+        return {"ok": False, "error": "路径无效"}
+    if target != base and base not in target.parents:
+        return {"ok": False, "error": "不允许访问该路径"}
+    if not target.is_file():
+        return {"ok": False, "error": "文件不存在"}
+    subprocess.Popen(["open", "-R", str(target)] if reveal else ["open", str(target)])
     return {"ok": True}
 
 
@@ -906,20 +1015,40 @@ def build_player(title, sentences, audio_files, vocab, out_dir):
     return out
 
 
-def parse_md(md_path):
-    """解析单个 md，返回 (title, sentences, vocab)。"""
+def parse_md_full(md_path):
+    """解析单个 md，返回标题、栏目元信息、分段句子与词汇表。"""
     md_text = md_path.read_text(encoding="utf-8")
     m = re.match(r"\s*#\s+(.+)", md_text)
     h1 = m.group(1).strip() if m else ""
     # 老数据的 H1 就是文件名，仍用「去下划线」版；新数据用真正的文章标题
     title = h1 if (h1 and h1 != md_path.stem) else md_path.stem.replace("_", " ")
-    paras = extract_paragraphs(md_text)
-    sentences = []
-    for p in paras:
-        sentences.extend(split_sentences(p))
-    sentences = [s for s in sentences if len(s) >= 2]
-    vocab = extract_vocab(md_text)
-    return title, sentences, vocab
+    section = fly = date = standfirst = ""
+    for line in md_text.splitlines()[:12]:
+        s = line.strip()
+        if s.startswith("> ") and not section:
+            bits = [b.strip() for b in s[2:].split("·") if b.strip()]
+            if bits:
+                section = bits[0]
+                date = bits[-1] if len(bits) >= 2 else ""
+                fly = bits[1] if len(bits) >= 3 else ""
+        elif s.startswith("*") and s.endswith("*") and len(s) > 2 and not standfirst:
+            standfirst = s.strip("*").strip()
+    paragraphs = [[x for x in split_sentences(p) if len(x) >= 2]
+                  for p in extract_paragraphs(md_text)]
+    paragraphs = [p for p in paragraphs if p]
+    return {
+        "title": title,
+        "section": section, "fly": fly, "date": date, "standfirst": standfirst,
+        "paragraphs": paragraphs,
+        "sentences": [s for p in paragraphs for s in p],
+        "vocab": extract_vocab(md_text),
+    }
+
+
+def parse_md(md_path):
+    """解析单个 md，返回 (title, sentences, vocab)。"""
+    info = parse_md_full(md_path)
+    return info["title"], info["sentences"], info["vocab"]
 
 
 def collect_md_files(root):
@@ -1046,16 +1175,19 @@ class Library:
             if art is not None:
                 return art
             meta = self.flat[ai]
-            title, sentences, vocab = parse_md(meta["path"])
+            info = parse_md_full(meta["path"])
             adir = art_audio_dir(self.out_root, meta["issue"], meta["stem"])
             art = {
                 "ai": ai, "issue": meta["issue"], "stem": meta["stem"],
-                "title": title or meta["label"], "label": meta["label"],
+                "title": info["title"] or meta["label"], "label": meta["label"],
                 "id": f"{meta['issue']}/{meta['stem']}" if meta["issue"] else meta["stem"],
-                "vocab": vocab,
+                "vocab": None, "section": info["section"],
+                "date": info["date"], "standfirst": info["standfirst"],
+                "paragraphs": info["paragraphs"],
                 "sentences": [{"text": s, "path": adir / f"sent_{i:04d}.mp3"}
-                              for i, s in enumerate(sentences)],
+                              for i, s in enumerate(info["sentences"])],
             }
+            art["vocab"] = article_vocab(art)
             self._arts[ai] = art
             return art
 
@@ -1317,21 +1449,24 @@ def scan_articles(md_files, out_root):
     """解析 md，返回内部结构（含音频目标路径，尚未合成）。"""
     articles = []
     for md in md_files:
-        title, sentences, vocab = parse_md(md)
-        if not sentences:
+        info = parse_md_full(md)
+        if not info["sentences"]:
             print(f"  ⏭️  跳过（无英文正文）：{md.name}")
             continue
         article_dir = out_root / md.stem
-        articles.append({
-            "title": title,
+        art = {
+            "title": info["title"],
             "label": short_label(md.stem),
             "stem": md.stem,
-            "vocab": vocab,
+            "paragraphs": info["paragraphs"],
+            "vocab": None,
             "sentences": [
                 {"text": s, "path": article_dir / f"sent_{i:04d}.mp3"}
-                for i, s in enumerate(sentences)
+                for i, s in enumerate(info["sentences"])
             ],
-        })
+        }
+        art["vocab"] = article_vocab(art)
+        articles.append(art)
     return articles
 
 
@@ -1468,6 +1603,12 @@ def make_handler(page_html, lib, engine, status_payload, on_issue_loaded=None):
                 self._json_out(apply_data_dir(self._read_json().get("dir", "")))
             elif path == "/settings/reveal":
                 self._json_out(reveal_path(self._read_json().get("path", "")))
+            elif path == "/export/pdf":
+                self._json_out(export_pdf(lib, self._read_json()))
+            elif path == "/export/open":
+                body = self._read_json()
+                self._json_out(open_export(body.get("path", ""),
+                                           bool(body.get("reveal"))))
             elif path.startswith("/audio/"):
                 self._audio(path)
             else:
@@ -1557,18 +1698,22 @@ def run_serve(args):
         md = Path(args.md).expanduser()
         if not md.exists():
             sys.exit(f"找不到文件：{md}")
-        title, sentences, vocab = parse_md(md)
+        info = parse_md_full(md)
+        sentences = info["sentences"]
         if not sentences:
             sys.exit('md 里没有可朗读的英文（需要 <div class="original"> 原文段）')
         art = {
-            "ai": 0, "issue": "", "stem": md.stem, "title": title,
-            "label": short_label(md.stem), "id": md.stem, "vocab": vocab,
+            "ai": 0, "issue": "", "stem": md.stem, "title": info["title"],
+            "label": short_label(md.stem), "id": md.stem, "vocab": None,
+            "section": info["section"], "date": info["date"],
+            "standfirst": info["standfirst"], "paragraphs": info["paragraphs"],
             "sentences": [
                 {"text": s,
                  "path": art_audio_dir(out_root, "", md.stem) / f"sent_{i:04d}.mp3"}
                 for i, s in enumerate(sentences)
             ],
         }
+        art["vocab"] = article_vocab(art)
         lib = SingleArticle(art)
         kind, cur_issue = "single", ""
         print(f"📖 {art['title']}：{len(sentences)} 句")

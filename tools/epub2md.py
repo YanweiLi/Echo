@@ -12,7 +12,6 @@
 
 import argparse
 import html
-import json
 import re
 import sys
 import zipfile
@@ -25,8 +24,10 @@ SRC_DIR = ROOT / "src"
 sys.path.insert(0, str(SRC_DIR))
 
 from player import split_sentences  # noqa: E402  复用现有断句（含缩写表）
+import vocab as vocablib  # noqa: E402  四六级 / 超纲分层标注
+from printing import (build_week_html, html_to_pdf,  # noqa: E402
+                      merge_paragraphs, pick_week_articles)
 
-DICT_FILE = SRC_DIR / "dictionary.json"
 
 # 非文章页（按文件名过滤）
 SKIP_PATTERNS = (
@@ -266,37 +267,6 @@ def chapter_paragraphs(doc: DocParser):
 # 生词标注 / md 生成（移植旧脚本逻辑，格式对齐现有 md）
 # --------------------------------------------------------------------------
 
-def load_dict():
-    if not DICT_FILE.exists():
-        print(f"⚠️  未找到词典 {DICT_FILE}，将不做生词标注（先跑 tools/extract_dict.py）")
-        return {}
-    return json.loads(DICT_FILE.read_text(encoding="utf-8"))
-
-
-def find_vocab(sentence: str, dictionary: dict):
-    """返回句中命中的词典词：[(word, ipa, zh, level)]，按出现顺序。"""
-    hits = []
-    seen = set()
-    for m in re.finditer(r"\b[a-zA-Z][a-zA-Z'-]{2,}\b", sentence):
-        raw = m.group(0)
-        key = raw.lower()
-        if key in seen:
-            continue
-        info = dictionary.get(key)
-        if info:
-            seen.add(key)
-            hits.append((raw, info.get("ipa", ""), info.get("zh", ""), int(info.get("level", 0))))
-    return hits
-
-
-def highlight(sentence: str, words) -> str:
-    result = sentence
-    for w, _, _, _ in words:
-        result = re.sub(r"\b" + re.escape(w) + r"\b",
-                        f'<span style="color:red">{w}</span>', result, flags=re.IGNORECASE)
-    return result
-
-
 MD_STYLE = """<style>
 .container { display: flex; }
 .original { flex: 0 0 70%; padding-right: 15px; border-right: 1px solid #e0e0e0; margin-right: 15px; }
@@ -309,55 +279,51 @@ MD_STYLE = """<style>
 </style>
 """
 
-LEVEL_TITLES = {1: "⭐ 初级词汇", 2: "⭐⭐ 中级词汇", 3: "⭐⭐⭐ 高级词汇"}
 
-
-def collect_vocab(sentences, dictionary: dict) -> dict:
-    """汇总本篇生词：word -> {word, ipa, zh, level, example(首次出现句)。"""
-    all_vocab = {}
-    for sent in sentences:
-        for raw, ipa, zh, level in find_vocab(sent, dictionary):
-            key = raw.lower()
-            if key not in all_vocab:
-                example = sent if len(sent) <= 60 else sent[:57].rstrip() + "…"
-                all_vocab[key] = {"word": raw, "ipa": ipa, "zh": zh,
-                                  "level": level, "example": example}
-    return all_vocab
-
-
-def vocab_groups(all_vocab: dict):
-    """按难度分组 → [(标题, [词条…]), …]，粒度与现有 md 一致。"""
-    groups = []
-    for level in (1, 2, 3):
-        group = sorted((v for v in all_vocab.values() if v["level"] == level),
-                       key=lambda x: x["word"].lower())
-        if group:
-            groups.append((LEVEL_TITLES[level], group))
-    other = sorted((v for v in all_vocab.values() if v["level"] not in (1, 2, 3)),
-                   key=lambda x: x["word"].lower())
-    if other:
-        groups.append(("其他词汇", other))
-    return groups
-
-
-def sentence_blocks(sentences, dictionary: dict):
-    """每句一个双栏块（原文 + 侧栏生词）。md 与打印 HTML 共用。"""
+def sentence_blocks(marked) -> list:
+    """每句一个双栏块（原文 + 侧栏生词）。marked 为 vocab.annotate 的返回。"""
     blocks = []
-    for sent in sentences:
-        hits = find_vocab(sent, dictionary)
-        vocab_html = "".join(f"{raw} {ipa} {zh}<br>" for raw, ipa, zh, _ in hits[:5])
+    for sent, hits in marked:
+        red = esc(sent)
+        for term in hits:                        # 由后往前替换，避免位置错乱
+            red = re.sub(r"\b" + re.escape(esc(term["text"])) + r"\b",
+                         f'<span style="color:red">{esc(term["text"])}</span>',
+                         red, count=1)
+        vocab_html = "".join(f'{esc(t["word"])} {esc(t["ipa"])} {esc(t["zh"])}<br>'
+                             for t in hits[:5])
         blocks.append(
             '<div class="container">\n'
-            f'<div class="original">{highlight(sent, hits)}</div>\n'
+            f'<div class="original">{red}</div>\n'
             f'<div class="vocab">{vocab_html}</div>\n'
             "</div>"
         )
     return blocks
 
 
+def mark_pairs(paragraphs, marks):
+    """段落式 marks → 句子顺序的 [(句子, 该句标注)]。"""
+    return [(sent, marks[pi][si])
+            for pi, para in enumerate(paragraphs)
+            for si, sent in enumerate(para)]
+
+
+def vocab_table(terms) -> list:
+    """md 的「词汇速查表」：按 四级 / 六级 / 超纲 分组。"""
+    out = []
+    for title, items in vocablib.groups(terms):
+        out.append(f"### {title}\n\n")
+        out.append("| 单词 | 音标 | 释义 | 示例 |\n")
+        out.append("| ---- | ---- | ---- | ---- |\n")
+        for t in items:
+            out.append(f'| {t["word"]} | {t["ipa"]} | {t["zh"]} | '
+                       f'{t.get("example", "")} |\n')
+        out.append("\n")
+    return out
+
+
 def build_md(title: str, section: str, fly: str, standfirst: str,
-             date: str, sentences, dictionary: dict) -> str:
-    """按现有 md 的格式产出（4 列词汇速查表 + ⭐难度分组 + 双栏 div）。"""
+             date: str, paragraphs, marks, terms) -> str:
+    """按现有 md 的格式产出（4 列词汇速查表 + 四级/六级/超纲分组 + 双栏 div）。"""
     md = []
     md.append(f"# {title or 'Article'}\n\n")
     meta_bits = [b for b in (section, fly, date) if b]
@@ -369,16 +335,10 @@ def build_md(title: str, section: str, fly: str, standfirst: str,
     md.append("---\n\n")
     md.append("## 原文阅读\n\n")
     md.append(MD_STYLE + "\n")
-    md.append("\n\n".join(sentence_blocks(sentences, dictionary)) + "\n\n")
+    md.append("\n\n".join(sentence_blocks(mark_pairs(paragraphs, marks))) + "\n\n")
     md.append("---\n\n")
     md.append("## 词汇速查表\n\n")
-    for name, group in vocab_groups(collect_vocab(sentences, dictionary)):
-        md.append(f"### {name}\n\n")
-        md.append("| 单词 | 音标 | 释义 | 示例 |\n")
-        md.append("| ---- | ---- | ---- | ---- |\n")
-        for v in group:
-            md.append(f"| {v['word']} | {v['ipa']} | {v['zh']} | {v['example']} |\n")
-        md.append("\n")
+    md.extend(vocab_table(terms))
     md.append("---\n\n")
     return "".join(md)
 
@@ -443,12 +403,10 @@ def esc(s) -> str:
     return html.escape(str(s or ""))
 
 
-def build_print_html(issue: str, articles, dictionary: dict, title: str = "") -> str:
+def build_print_html(issue: str, articles, title: str = "") -> str:
     """整期合并：封面目录 + 每篇分页 + 双栏原文 + 词汇速查表。"""
     total_sent = sum(len(a["sentences"]) for a in articles)
-    words = set()
-    for a in articles:
-        words.update(collect_vocab(a["sentences"], dictionary))
+    words = {t["word"] for a in articles for t in a["terms"]}
 
     out = [
         "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n",
@@ -477,19 +435,37 @@ def build_print_html(issue: str, articles, dictionary: dict, title: str = "") ->
         if a.get("standfirst"):
             out.append(f'<p class="art-standfirst">{esc(a["standfirst"])}</p>\n')
         out.append("</div>\n")
-        out.append("\n".join(sentence_blocks(a["sentences"], dictionary)))
+        out.append("\n".join(sentence_blocks(mark_pairs(a["paragraphs"], a["marks"]))))
         out.append('\n<div class="art-vocab">\n<h3 class="vt-level">词汇速查表</h3>\n')
-        for name, group in vocab_groups(collect_vocab(a["sentences"], dictionary)):
+        for name, group in vocablib.groups(a["terms"]):
             out.append(f'<h3 class="vt-level">{esc(name)}</h3>\n<table class="vt">\n')
             out.append("<tr><th>单词</th><th>音标</th><th>释义</th><th>示例</th></tr>\n")
             for v in group:
                 out.append(f'<tr><td>{esc(v["word"])}</td><td>{esc(v["ipa"])}</td>'
-                           f'<td>{esc(v["zh"])}</td><td class="ex">{esc(v["example"])}</td></tr>\n')
+                           f'<td>{esc(v["zh"])}</td>'
+                           f'<td class="ex">{esc(v.get("example", ""))}</td></tr>\n')
             out.append("</table>\n")
         out.append('<p class="backtop no-print"><a href="#top">↑ 回到目录</a></p>\n</div>\n</article>\n')
 
     out.append("</div>\n</body>\n</html>\n")
     return "".join(out)
+
+
+# --------------------------------------------------------------------------
+# 每周精选打印版（排版与导出见 src/printing.py，CLI 与 App 共用）
+# --------------------------------------------------------------------------
+
+
+def week_article(a) -> dict:
+    """EPUB 文章 → printing.build_week_html 需要的结构。"""
+    paragraphs, marks = merge_paragraphs(a["paragraphs"], a["marks"])
+    return {
+        "title": a["title"], "section": a.get("section"),
+        "date": a.get("date"), "standfirst": a.get("standfirst"),
+        "paragraphs": paragraphs, "marks": marks,
+        "glossary": [{"word": t["word"], "ipa": t["ipa"], "zh": t["zh"],
+                      "tier": t["tier"], "n": t["n"]} for t in a["terms"]],
+    }
 
 
 def slug(text: str, maxlen: int = 60) -> str:
@@ -522,8 +498,8 @@ def collect_epubs(target: Path):
     raise SystemExit(f"不是 epub 也不是目录：{target}")
 
 
-def analyze(epub_path: Path, dictionary: dict):
-    """返回 (articles, report)。articles 元素为 dict。"""
+def analyze(epub_path: Path, tiers=None):
+    """返回 (articles, report)。articles 元素为 dict（含 marks / terms）。"""
     ep = Epub(epub_path)
     articles, report = [], []
     for idx, (href, full, doc) in enumerate(ep.documents(), 1):
@@ -533,11 +509,15 @@ def analyze(epub_path: Path, dictionary: dict):
         skip = is_skippable(href) or not paras or chars < 400
         rows = []
         sentences = []
+        paragraphs = []
         if not skip:
             for p in paras:
-                sentences.extend(split_sentences(p))
-            sentences = [s for s in sentences if len(s) >= 2]
-            hits = sum(len(find_vocab(s, dictionary)) for s in sentences) if dictionary else 0
+                ps = [s for s in split_sentences(p) if len(s) >= 2]
+                if ps:
+                    paragraphs.append(ps)
+            sentences = [s for ps in paragraphs for s in ps]
+            marks, terms = vocablib.annotate(paragraphs, tiers=tiers)
+            hits = len(terms)
         report.append({
             "idx": idx, "href": href, "title": title, "section": section,
             "fly": fly, "date": date, "paras": len(paras), "chars": chars,
@@ -549,7 +529,8 @@ def analyze(epub_path: Path, dictionary: dict):
             articles.append({
                 "idx": idx, "href": href, "title": title or f"Article {idx}",
                 "section": section, "fly": fly, "standfirst": standfirst,
-                "date": date, "sentences": sentences,
+                "date": date, "sentences": sentences, "paragraphs": paragraphs,
+                "marks": marks, "terms": terms,
             })
     return articles, report
 
@@ -600,6 +581,20 @@ def main():
     ap.add_argument("--force", action="store_true", help="覆盖已存在的 md")
     ap.add_argument("--print", dest="do_print", action="store_true",
                     help="另出整期合并的可打印 HTML（dist/print/<期号>.html）")
+    ap.add_argument("--week", action="store_true",
+                    help="另出每周精选打印版（6–8 篇，约 16 页 A4）")
+    ap.add_argument("--pick", default="",
+                    help="精选篇号，如 011,018,031（配合 --week）")
+    ap.add_argument("--max-articles", type=int, default=8,
+                    help="每周精选篇数上限（默认 8）")
+    ap.add_argument("--max-sentences", type=int, default=300,
+                    help="每周精选句数上限（默认 300，约 16–18 页）")
+    ap.add_argument("--tiers", default="4,6,0",
+                    help="标注哪些档位：4=四级 6=六级 0=超纲（默认全标，如 \"0\" 只看超纲）")
+    ap.add_argument("--pdf", action="store_true",
+                    help="用 Chrome 无头模式导出 A4 PDF（dist/pdf）")
+    ap.add_argument("--list-picks", action="store_true",
+                    help="只列篇号/栏目/句数，不写文件")
     args = ap.parse_args()
 
     target = Path(args.target).expanduser()
@@ -609,18 +604,27 @@ def main():
     if not epubs:
         raise SystemExit("没有找到 epub 文件")
 
-    dictionary = load_dict()
+    tiers = {int(t) for t in re.split(r"[,\s]+", args.tiers) if t.strip().isdigit()}
+    if not tiers:
+        raise SystemExit("--tiers 至少要给一个档位：4 / 6 / 0")
     out_root = Path(args.out).expanduser() if args.out else (ROOT / "dist" / "md")
     total_md = 0
 
     for epub_path in epubs:
-        articles, report = analyze(epub_path, dictionary)
+        articles, report = analyze(epub_path, tiers)
         if not articles:
             print(f"⚠️  {epub_path.name}：没有解析出文章")
             continue
 
         if args.probe:
             print_probe(epub_path, report, articles)
+            continue
+
+        if args.list_picks:
+            print(f"\n📘 {epub_path.name}：{len(articles)} 篇可选")
+            for a in articles:
+                print(f"  {a['idx']:>4}  {(a.get('section') or '—'):<22} "
+                      f"{len(a['sentences']):>4} 句  {a['title'][:58]}")
             continue
 
         issue = issue_id(epub_path.stem)
@@ -632,7 +636,8 @@ def main():
             if path.exists() and not args.force:
                 continue
             path.write_text(build_md(a["title"], a["section"], a["fly"], a["standfirst"],
-                                     a["date"], a["sentences"], dictionary), encoding="utf-8")
+                                     a["date"], a["paragraphs"], a["marks"], a["terms"]),
+                            encoding="utf-8")
             total_md += 1
         kept = sum(1 for r in report if not r["skip"])
         print(f"✅ {issue}: 写出 {kept} 篇（{sum(len(a['sentences']) for a in articles)} 句）→ {out_dir}")
@@ -643,9 +648,31 @@ def main():
             print_dir = ROOT / "dist" / "print"
             print_dir.mkdir(parents=True, exist_ok=True)
             html_path = print_dir / f"{issue}.html"
-            html_path.write_text(build_print_html(issue, articles, dictionary, label),
+            html_path.write_text(build_print_html(issue, articles, label),
                                  encoding="utf-8")
             print(f"🖨️  整期打印版 → {html_path}（{html_path.stat().st_size//1024} KB）")
+
+        if args.week:
+            picks = {int(x) for x in re.split(r"[,\s]+", args.pick) if x.strip().isdigit()}
+            chosen = pick_week_articles(articles, picks,
+                                        args.max_articles, args.max_sentences)
+            if not chosen:
+                print("⚠️  没有可打印的文章")
+            else:
+                date_txt = next((a["date"] for a in chosen if a.get("date")), "")
+                label = "The Economist" + (f" · {date_txt}" if date_txt else f" · {issue}")
+                print_dir = ROOT / "dist" / "print"
+                print_dir.mkdir(parents=True, exist_ok=True)
+                html_path = print_dir / f"{issue}_week.html"
+                handout = [week_article(a) for a in chosen]
+                html_path.write_text(build_week_html(handout, label), encoding="utf-8")
+                total = sum(len(a["sentences"]) for a in chosen)
+                print(f"🖨️  每周精选 {len(chosen)} 篇 / {total} 句 → "
+                      f"{html_path}（{html_path.stat().st_size//1024} KB）")
+                if args.pdf:
+                    pdf_path = ROOT / "dist" / "pdf" / f"{issue}_week.pdf"
+                    if html_to_pdf(html_path, pdf_path):
+                        print(f"📄 A4 PDF → {pdf_path}（{pdf_path.stat().st_size//1024} KB）")
 
     if not args.probe:
         print(f"\n总计写出 {total_md} 个 md → {out_root}")

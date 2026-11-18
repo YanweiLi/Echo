@@ -213,6 +213,11 @@
   .vw-line { display: flex; align-items: baseline; gap: 8px; }
   .vw-word { font-family: var(--serif); font-size: 17px; font-weight: 700; }
   .vw-ipa { color: var(--muted); font-size: 13px; }
+  .vw-tier { font-size: 10.5px; padding: 0 5px; border-radius: 5px; margin-left: 6px;
+             vertical-align: 2px; font-weight: 600; letter-spacing: .02em; }
+  .vw-tier.t4 { background: #e8f0fe; color: #1a56c4; }
+  .vw-tier.t6 { background: #fdf0e2; color: #b4640a; }
+  .vw-tier.t0 { background: #f3ecf8; color: #7a3fa8; }
   .vw-mean { font-size: 13.5px; margin-top: 2px; }
   .vw-ex { color: var(--muted); font-size: 12.5px; font-style: italic; margin-top: 2px; }
   .speaker { color: var(--accent); font-size: 13px; margin-left: auto; }
@@ -305,6 +310,21 @@
                    background: var(--card); color: var(--ink); }
   .set-add button { font-size: 13px; padding: 6px 12px; }
   .set-note { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.6; }
+
+  /* ---- 导出 A4 讲义 ---- */
+  .exp-body { padding: 14px 18px 18px; }
+  .exp-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .exp-row > select { flex: 1; }
+  .exp-hint { color: var(--muted); font-size: 12.5px; line-height: 1.6; margin: 6px 0 14px; }
+  .exp-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .exp-status { font-size: 12.5px; color: var(--muted); }
+  .exp-status.err { color: var(--accent); }
+  .exp-result { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line);
+                border-radius: 12px; background: var(--bg); font-size: 13px; }
+  .exp-result .exp-file { font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+                          color: var(--muted); word-break: break-all; margin: 6px 0 10px; }
+  .exp-result .exp-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .exp-result button { font-size: 13px; padding: 6px 12px; }
 </style>
 </head>
 <body>
@@ -313,6 +333,7 @@
     <div class="title">🎧 Echo · 英语学习播放列表</div>
     <select id="issue" class="issue-sel hidden" title="切换期号"></select>
     <div class="spacer"></div>
+    <button id="exp-open" title="导出 A4 讲义 PDF（打印用）">🖨</button>
     <button id="vn-open" title="生词本">📒<span id="vn-count"></span></button>
     <button id="set-open" title="设置">⚙️</button>
   </div>
@@ -441,6 +462,31 @@
   </div>
 </div>
 
+<div id="exp-modal" class="vn-modal hidden">
+  <div class="vn-panel" style="width:min(540px, calc(100vw - 32px))">
+    <div class="vn-head">
+      <h3>🖨 导出 A4 讲义</h3>
+      <button id="exp-close">✕</button>
+    </div>
+    <div class="exp-body">
+      <div class="exp-row">
+        <span class="set-label">范围</span>
+        <select id="exp-scope">
+          <option value="weekly">本周精选（Leaders 优先，约 16 页）</option>
+          <option value="article">当前这篇</option>
+          <option value="issue">整期全部（页数很多）</option>
+        </select>
+      </div>
+      <div class="exp-hint" id="exp-hint"></div>
+      <div class="exp-actions">
+        <button id="exp-run" class="primary" style="min-width:104px;font-size:14px">生成 PDF</button>
+        <span class="exp-status" id="exp-status"></span>
+      </div>
+      <div class="exp-result hidden" id="exp-result"></div>
+    </div>
+  </div>
+</div>
+
 <script>
 const ISSUES = __ISSUES_JSON__;
 let ARTICLES = __ARTICLES_JSON__;
@@ -466,6 +512,12 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, c => (
     { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
   ));
+}
+
+function tierBadge(t) {
+  const map = { 4: ["t4", "四级"], 6: ["t6", "六级"], 0: ["t0", "超纲"] };
+  const hit = map[t];
+  return hit ? `<span class="vw-tier ${hit[0]}">${hit[1]}</span>` : "";
 }
 
 function wordCore(tok) {
@@ -885,6 +937,84 @@ function currentCtx() {
   return { note: s ? s.text : "", src: art().label, a: a, i: idx };
 }
 
+// ---- 导出 A4 讲义（后端排版 + Chrome 无头转 PDF）----
+const EXP_HINTS = {
+  weekly: "Leaders 优先 + 各栏目首篇，6 篇左右、约 16 页 A4（8 张纸双面）。",
+  article: "只导出当前正在读的这一篇，通常 1–3 页。",
+  issue: "导出本期全部文章，页数很多（可能 300 页以上），只在需要时用。",
+};
+
+function expHint() {
+  $("exp-hint").textContent = EXP_HINTS[$("exp-scope").value] || "";
+  $("exp-result").classList.add("hidden");
+  $("exp-status").className = "exp-status";
+  $("exp-status").textContent = "";
+}
+
+async function postJson(url, body) {
+  const r = await fetch(url, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+async function expRun() {
+  const btn = $("exp-run");
+  btn.disabled = true;
+  $("exp-result").classList.add("hidden");
+  $("exp-status").className = "exp-status";
+  $("exp-status").textContent = "正在排版并生成 PDF（约 5–15 秒）…";
+  try {
+    const j = await postJson("/export/pdf", {
+      scope: $("exp-scope").value, ai: art() ? art().ai : 0, issue: curIssue,
+    });
+    if (!j.ok) throw new Error(j.error || "导出失败");
+    $("exp-status").textContent = "";
+    renderExpResult(j);
+  } catch (e) {
+    $("exp-status").className = "exp-status err";
+    $("exp-status").textContent = "导出失败：" + (e.message || e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderExpResult(j) {
+  const box = $("exp-result");
+  const file = j.pdf_ok ? j.pdf : j.html;
+  box.innerHTML = `
+    <div>${j.articles} 篇 · ${j.sentences} 句${j.pdf_ok ? " · PDF 已生成" : ""}</div>
+    <div class="exp-file">${esc(file)}</div>
+    <div class="exp-btns">
+      ${j.pdf_ok ? '<button id="exp-reveal">在 Finder 中显示</button>' +
+                   '<button id="exp-view">用预览打开</button>' : ''}
+      <button id="exp-html">打开 HTML</button>
+    </div>
+    ${j.pdf_ok ? '' :
+      '<div class="exp-hint" style="margin:8px 0 0">未找到 Chrome/Edge，已改为生成可打印 HTML：' +
+      '用浏览器打开后 ⌘P「另存为 PDF」。</div>'}`;
+  box.classList.remove("hidden");
+
+  const openPath = async (p, reveal) => {
+    try {
+      const r = await postJson("/export/open", { path: p, reveal });
+      if (!r.ok) throw new Error(r.error || "打开失败");
+    } catch (e) {
+      $("exp-status").className = "exp-status err";
+      $("exp-status").textContent = e.message || String(e);
+    }
+  };
+  const bind = (id, p, reveal) => {
+    const el = $(id);
+    if (el) el.onclick = () => openPath(p, reveal);
+  };
+  bind("exp-reveal", j.pdf, true);
+  bind("exp-view", j.pdf, false);
+  bind("exp-html", j.html, false);
+}
+
 function vnJump(x) {
   if (typeof x.a === "number" && ARTICLES[x.a] && typeof x.i === "number" && ARTICLES[x.a].sentences[x.i]) {
     playArticle(x.a, x.i);
@@ -1080,7 +1210,7 @@ function renderArticle() {
     `<div class="sent" data-i="${i}"><span class="idx">${i + 1}</span><span class="txt">${wrapWords(s.text)}</span><button class="zh-btn" data-zh="${i}" title="显示中文翻译">译</button><button class="zh-btn ai-btn" data-ai="${i}" title="AI 拆解这句">析</button></div>`).join("");
   $("vocab").innerHTML = (art().vocab || []).map(v =>
     `<div class="vocab-item" data-w="${esc(v.word)}">
-       <div class="vw-line"><span class="vw-word">${esc(v.word)}</span><span class="vw-ipa">${esc(v.phonetic)}</span><span class="speaker">🔊</span></div>
+       <div class="vw-line"><span class="vw-word">${esc(v.word)}</span><span class="vw-ipa">${esc(v.phonetic)}</span>${tierBadge(v.tier)}<span class="speaker">🔊</span></div>
        <div class="vw-mean">${esc(v.meaning)}</div>
        <div class="vw-ex">${esc(v.example)}</div>
      </div>`).join("");
@@ -1225,7 +1355,7 @@ document.addEventListener("click", e => {
 });
 
 document.addEventListener("keydown", e => {
-  for (const id of ["vn-modal", "set-modal"]) {
+  for (const id of ["vn-modal", "set-modal", "exp-modal"]) {
     const modal = $(id);
     if (modal && !modal.classList.contains("hidden")) {
       if (e.key === "Escape") modal.classList.add("hidden");
@@ -1303,6 +1433,18 @@ $("mark-done").addEventListener("click", async () => {
   renderArticle();
   setActive(idx);
 });
+
+// ---- 导出讲义事件 ----
+$("exp-open").addEventListener("click", () => {
+  $("exp-modal").classList.remove("hidden");
+  expHint();
+});
+$("exp-close").addEventListener("click", () => $("exp-modal").classList.add("hidden"));
+$("exp-modal").addEventListener("click", e => {
+  if (e.target.id === "exp-modal") $("exp-modal").classList.add("hidden");
+});
+$("exp-scope").addEventListener("change", expHint);
+$("exp-run").addEventListener("click", expRun);
 
 // ---- 设置事件 ----
 $("set-open").addEventListener("click", openSettings);
