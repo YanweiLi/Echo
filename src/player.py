@@ -30,7 +30,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlencode, urlparse
@@ -91,6 +91,7 @@ CONFIG_FILE = DATA_DIR / "config.json"          # 搜索路径
 VOCAB_FILE = DATA_DIR / "vocab.json"            # 生词本
 PROGRESS_FILE = DATA_DIR / "progress.json"      # 学习进度（是否读完）
 POSITIONS_FILE = DATA_DIR / "positions.json"    # 每篇读到第几句
+CHUNKS_FILE = DATA_DIR / "chunks.json"          # 语块本（可复用的表达 + 复习档位）
 TRANSLATIONS_FILE = DATA_DIR / "translations.json"  # 句子中译缓存
 EXPLAINS_FILE = DATA_DIR / "explains.json"          # AI 句子拆解缓存
 try:
@@ -102,6 +103,7 @@ except OSError:
 def set_data_dir(new_dir):
     """更改数据目录（传空字符串则恢复默认），并刷新全局路径。"""
     global DATA_DIR, CONFIG_FILE, VOCAB_FILE, PROGRESS_FILE, POSITIONS_FILE
+    global CHUNKS_FILE
     global TRANSLATIONS_FILE
     global EXPLAINS_FILE
     cfg = load_bootstrap()
@@ -116,6 +118,7 @@ def set_data_dir(new_dir):
     VOCAB_FILE = DATA_DIR / "vocab.json"
     PROGRESS_FILE = DATA_DIR / "progress.json"
     POSITIONS_FILE = DATA_DIR / "positions.json"
+    CHUNKS_FILE = DATA_DIR / "chunks.json"
     TRANSLATIONS_FILE = DATA_DIR / "translations.json"
     EXPLAINS_FILE = DATA_DIR / "explains.json"
     # 缓存对象换到新目录并重新加载
@@ -200,6 +203,7 @@ def settings_payload():
         "vocab_backup_dir": str(DATA_DIR / "backup"),
         "progress_file": str(PROGRESS_FILE),
         "positions_file": str(POSITIONS_FILE),
+        "chunks_file": str(CHUNKS_FILE),
         "translations_file": str(TRANSLATIONS_FILE),
         "translated_count": len(TR_CACHE),
         "explains_file": str(EXPLAINS_FILE),
@@ -830,6 +834,98 @@ def vocab_clear():
         backup_json(VOCAB_FILE)          # 清空前自动备份，误点可找回
         _save_vocab([])
     return []
+
+
+# ---- 语块本：可复用的表达 + 间隔重复 ----
+_chunks_lock = threading.Lock()
+CHUNK_INTERVALS = {1: 1, 2: 2, 3: 4, 4: 8, 5: 15}   # 档位 → 间隔天数
+
+
+def _today():
+    return datetime.now().date()
+
+
+def load_chunks():
+    try:
+        data = json.loads(CHUNKS_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _save_chunks(items):
+    try:
+        CHUNKS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = CHUNKS_FILE.with_name(CHUNKS_FILE.name + ".part")
+        tmp.write_text(json.dumps(items, ensure_ascii=False, indent=1) + "\n",
+                       encoding="utf-8")
+        tmp.replace(CHUNKS_FILE)
+    except OSError:
+        pass
+
+
+def _norm_chunk(text):
+    return re.sub(r"\s+", " ", str(text or "")).strip()
+
+
+def chunks_payload():
+    items = load_chunks()
+    today = _today().isoformat()
+    due = sum(1 for c in items if str(c.get("due") or "") <= today)
+    return {"items": items, "due": due, "today": today}
+
+
+def chunk_add(body):
+    en = _norm_chunk(body.get("en"))
+    if len(en) < 2:
+        return {"ok": False, "error": "语块太短", **chunks_payload()}
+    zh = _norm_chunk(body.get("zh"))
+    src = _norm_chunk(body.get("src"))
+    book = _norm_chunk(body.get("book"))
+    with _chunks_lock:
+        items = load_chunks()
+        cid = hashlib.sha1(en.lower().encode("utf-8")).hexdigest()[:10]
+        if any(c.get("id") == cid for c in items):
+            return {"ok": False, "error": "这个语块已在库里", **chunks_payload()}
+        items.append({
+            "id": cid, "en": en, "zh": zh, "src": src[:300], "book": book,
+            "at": datetime.now().isoformat(timespec="seconds"),
+            "box": 1, "due": _today().isoformat(), "seen": 0, "ok": 0,
+        })
+        _save_chunks(items)
+    return {"ok": True, **chunks_payload()}
+
+
+def chunk_remove(cid):
+    with _chunks_lock:
+        items = [c for c in load_chunks() if c.get("id") != cid]
+        _save_chunks(items)
+    return {"ok": True, **chunks_payload()}
+
+
+def chunk_review(cid, result):
+    """result: ok=记得 / fuzzy=模糊 / forgot=忘了。"""
+    result = str(result or "").strip().lower()
+    if result not in ("ok", "fuzzy", "forgot"):
+        return {"ok": False, "error": "未知结果", **chunks_payload()}
+    with _chunks_lock:
+        items = load_chunks()
+        hit = next((c for c in items if c.get("id") == cid), None)
+        if not hit:
+            return {"ok": False, "error": "语块不存在", **chunks_payload()}
+        box = int(hit.get("box") or 1)
+        if result == "ok":
+            box = min(box + 1, 5)
+            hit["ok"] = int(hit.get("ok") or 0) + 1
+        elif result == "forgot":
+            box = 1
+        hit["box"] = box
+        hit["seen"] = int(hit.get("seen") or 0) + 1
+        hit["last"] = datetime.now().isoformat(timespec="seconds")
+        gap = 0 if result == "forgot" else CHUNK_INTERVALS[box]
+        hit["due"] = (_today() + timedelta(days=gap)).isoformat()
+        _save_chunks(items)
+    return {"ok": True, **chunks_payload()}
 
 
 # ---- 学习进度（标记文章已完成）----
@@ -1642,6 +1738,15 @@ def make_handler(page_html, lib, engine, status_payload, on_issue_loaded=None):
             elif path == "/ai/clear_cache":
                 EXPLAIN_CACHE.clear()
                 self._json_out({"ok": True, "explain_count": 0})
+            elif path == "/chunks":
+                self._json_out(chunks_payload())
+            elif path == "/chunks/add":
+                self._json_out(chunk_add(self._read_json()))
+            elif path == "/chunks/remove":
+                self._json_out(chunk_remove(self._read_json().get("id", "")))
+            elif path == "/chunks/review":
+                body = self._read_json()
+                self._json_out(chunk_review(body.get("id", ""), body.get("result", "")))
             elif path == "/vocab":
                 self._json_out({"items": load_vocab()})
             elif path == "/vocab/add":

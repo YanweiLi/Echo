@@ -221,6 +221,44 @@
   .sent:hover .sent-play, .sent.active .sent-play { opacity: .9; }
   .sent-play:hover { border-color: var(--accent); color: var(--accent); }
   .sent-play.on { opacity: 1; background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .sent-rec {
+    flex: none; align-self: flex-start; margin-top: 1px;
+    width: 22px; height: 22px; padding: 0; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10px; line-height: 1; color: var(--muted);
+    opacity: .4; transition: .15s;
+  }
+  .sent:hover .sent-rec, .sent.active .sent-rec { opacity: .9; }
+  .sent-rec:hover { border-color: var(--accent); }
+  .sent-rec.rec { opacity: 1; background: #d33; color: #fff; border-color: #d33;
+                  animation: recpulse 1s infinite; }
+  @keyframes recpulse { 50% { opacity: .55; } }
+  .sent.active .sent-rec { margin-top: 3px; }
+  .rec-bar { flex-basis: 100%; display: flex; align-items: center; gap: 6px;
+             margin: 8px 0 0 38px; font-size: 12px; color: var(--muted); }
+  .rec-bar button { padding: 2px 8px; font-size: 11.5px; border-radius: 7px; }
+  .rec-bar .rec-dur { font-variant-numeric: tabular-nums; }
+  .rec-err { flex-basis: 100%; margin: 6px 0 0 38px; font-size: 12px; color: var(--accent); }
+  .chunk-fab {
+    position: fixed; z-index: 70; transform: translate(-50%, -130%);
+    font-size: 12px; padding: 4px 10px; border-radius: 999px;
+    background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent);
+    box-shadow: 0 6px 18px rgba(0,0,0,.25);
+  }
+  .chunk-card { padding: 18px 20px; }
+  .chunk-prompt { font-family: var(--serif); font-size: 20px; line-height: 1.6; }
+  .chunk-prompt.masked { letter-spacing: .05em; color: var(--muted); }
+  .chunk-en { font-family: var(--serif); font-size: 23px; font-weight: 600; margin: 10px 0 6px; }
+  .chunk-src { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin-top: 8px; }
+  .chunk-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .chunk-actions button { font-size: 13px; padding: 7px 14px; }
+  .chunk-actions .forgot { border-color: #c0392b; color: #c0392b; }
+  .chunk-actions .ok { border-color: #2e7d32; color: #2e7d32; }
+  .chunk-meta { font-size: 12px; color: var(--muted); }
+  .chunk-item { padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  .chunk-item .ce { font-family: var(--serif); font-size: 15.5px; font-weight: 600; }
+  .chunk-item .cz { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .chunk-item .cbox { font-size: 11px; color: var(--muted); margin-top: 4px; }
   .sent.active .sent-play { margin-top: 3px; }
   .sent .idx { color: var(--muted); font-size: 12px; min-width: 26px; text-align: right;
                padding-top: 3px; font-variant-numeric: tabular-nums; transition: .15s; }
@@ -426,6 +464,7 @@
     <div class="spacer"></div>
     <button id="theme-btn" title="切换深色 / 浅色">🌙</button>
     <button id="exp-open" title="导出 A4 讲义 PDF（打印用）">🖨</button>
+    <button id="chunk-open" title="语块本（可复用表达 + 复习）">🧩<span id="chunk-count"></span></button>
     <button id="vn-open" title="生词本">📒<span id="vn-count"></span></button>
     <button id="set-open" title="设置">⚙️</button>
   </div>
@@ -549,6 +588,38 @@
       <button id="set-close">✕</button>
     </div>
     <div class="vn-list" id="set-body" style="padding:12px 18px"></div>
+  </div>
+</div>
+
+<div id="chunk-modal" class="vn-modal hidden">
+  <div class="vn-panel" style="width:min(620px, calc(100vw - 32px))">
+    <div class="vn-head">
+      <h3>🧩 语块本 <span id="chunk-total" class="hint"></span></h3>
+      <button id="chunk-start">开始复习</button>
+      <button id="chunk-close">✕</button>
+    </div>
+    <div class="vn-list" id="chunk-body"></div>
+  </div>
+</div>
+
+<div id="chunk-add-modal" class="vn-modal hidden">
+  <div class="vn-panel" style="width:min(520px, calc(100vw - 32px))">
+    <div class="vn-head">
+      <h3>＋ 新建语块</h3>
+      <button id="chunk-add-close">✕</button>
+    </div>
+    <div class="chunk-card">
+      <div class="set-row"><span class="set-label">英文块</span>
+        <input type="text" id="chunk-en"></div>
+      <div class="set-row"><span class="set-label">中文提示</span>
+        <input type="text" id="chunk-zh" placeholder="可选，如：担心坏消息要来"></div>
+      <div class="set-note" id="chunk-add-note"></div>
+      <div class="set-note">建议只选 <b>3–8 个词的可复用结构</b>（如 <code>Some fear ___ is coming</code>），
+        整句太长，复习时说不出来。</div>
+      <div class="chunk-actions">
+        <button id="chunk-save" class="primary" style="min-width:88px">保存</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1289,6 +1360,8 @@ function renderSettings() {
       ${infoRow("数据目录", settings.data_dir)}
       ${infoRow("生词本", settings.vocab_file)}
       ${infoRow("学习进度", settings.progress_file)}
+      ${infoRow("阅读位置", settings.positions_file)}
+      ${infoRow("语块本", settings.chunks_file)}
       ${infoRow("自动备份（清空前的副本）", settings.vocab_backup_dir)}
       ${infoRow("句子中译缓存（" + (settings.translated_count || 0) + " 句）", settings.translations_file)}
       ${infoRow("产物目录", settings.dist_dir)}
@@ -1393,7 +1466,7 @@ function renderPlaylist() {
 
 function renderArticle() {
   $("sents").innerHTML = art().sentences.map((s, i) =>
-    `<div class="sent" data-i="${i}"><button class="sent-play" data-play="${i}" title="只播放这一句（再点暂停）">▶</button><span class="idx">${i + 1}</span><span class="txt">${wrapWords(s.text)}</span><button class="zh-btn" data-zh="${i}" title="显示中文翻译">译</button><button class="zh-btn ai-btn" data-ai="${i}" title="AI 拆解这句">析</button></div>`).join("");
+    `<div class="sent" data-i="${i}"><button class="sent-play" data-play="${i}" title="只播放这一句（再点暂停）">▶</button><button class="sent-rec" data-rec="${i}" title="录音跟读：点一下开始，再点结束">🎤</button><span class="idx">${i + 1}</span><span class="txt">${wrapWords(s.text)}</span><button class="zh-btn" data-zh="${i}" title="显示中文翻译">译</button><button class="zh-btn ai-btn" data-ai="${i}" title="AI 拆解这句">析</button></div>`).join("");
   $("vocab").innerHTML = (art().vocab || []).map(v =>
     `<div class="vocab-item" data-w="${esc(v.word)}">
        <div class="vw-line"><span class="vw-word">${esc(v.word)}</span><span class="vw-ipa">${esc(v.phonetic)}</span>${tierBadge(v.tier)}<span class="speaker">🔊</span></div>
@@ -1404,6 +1477,12 @@ function renderArticle() {
   document.querySelectorAll(".pl-item").forEach(el =>
     el.classList.toggle("active", Number(el.dataset.a) === a));
   $("sents-head").textContent = `${art().label} · 逐句 · 点击跳转`;
+  // 换篇：停掉录音并清空本会话录音（索引是按篇的）
+  if (recState) stopRec();
+  Object.keys(recStore).forEach(k => {
+    try { URL.revokeObjectURL(recStore[k].url); } catch (e) {}
+    delete recStore[k];
+  });
   updateMarkBtn();
   if (lastStatus) applyStatus(lastStatus);
 }
@@ -1416,6 +1495,7 @@ function globalIndex() {
 
 function setActive(i) {
   idx = i;
+  hideChunkFab();
   if (aiOpenIndex !== null && aiOpenIndex !== i) {
     // 抽屉开着但换了句：不自动拆解（避免消耗额度），只给一个按钮
     aiOpenIndex = null;
@@ -1554,6 +1634,10 @@ $("pl-list").addEventListener("click", e => {
 });
 
 $("sents").addEventListener("click", e => {
+  const rb = e.target.closest(".sent-rec");
+  if (rb) { toggleRec(parseInt(rb.dataset.rec, 10)); return; }
+  const abBtn = e.target.closest("[data-ab]");
+  if (abBtn) { playAB(parseInt(abBtn.dataset.i, 10), abBtn.dataset.ab); return; }
   const pb = e.target.closest(".sent-play");
   if (pb) { toggleRowPlay(parseInt(pb.dataset.play, 10)); return; }
   const ab = e.target.closest(".ai-btn");
@@ -1595,7 +1679,7 @@ document.addEventListener("click", e => {
 });
 
 document.addEventListener("keydown", e => {
-  for (const id of ["vn-modal", "set-modal", "exp-modal"]) {
+  for (const id of ["vn-modal", "set-modal", "exp-modal", "chunk-modal", "chunk-add-modal"]) {
     const modal = $(id);
     if (modal && !modal.classList.contains("hidden")) {
       if (e.key === "Escape") modal.classList.add("hidden");
@@ -1711,6 +1795,294 @@ $("mark-done").addEventListener("click", async () => {
   setActive(idx);
 });
 
+
+// ---- 录音跟读：录 → 与原音 A/B 对比 ----
+const recStore = {};          // i -> {url, dur}
+let recState = null;          // {i, mr, chunks, stream, t0, timer}
+const abAudio = new Audio();  // 专门用来播「原音 / 我的」
+
+function stopMainAudio() {
+  try { audio.pause(); playing = false; renderPlay(); } catch (e) {}
+}
+
+function recBar(i) {
+  const row = document.querySelector(`#sents .sent[data-i="${i}"]`);
+  if (!row) return;
+  row.querySelectorAll(".rec-bar, .rec-err").forEach(e => e.remove());
+  const rec = recStore[i];
+  if (!rec) return;
+  const bar = document.createElement("div");
+  bar.className = "rec-bar";
+  bar.innerHTML = `
+    <span class="rec-dur">🎧 ${rec.dur.toFixed(1)}s</span>
+    <button data-ab="orig" data-i="${i}">▶ 原音</button>
+    <button data-ab="mine" data-i="${i}">▶ 我的</button>
+    <button data-ab="ab" data-i="${i}">原音→我的</button>
+    <button data-ab="del" data-i="${i}" title="删除录音">🗑</button>`;
+  row.appendChild(bar);
+}
+
+function recError(i, msg) {
+  const row = document.querySelector(`#sents .sent[data-i="${i}"]`);
+  if (!row) return;
+  row.querySelectorAll(".rec-err").forEach(e => e.remove());
+  const el = document.createElement("div");
+  el.className = "rec-err";
+  el.textContent = "🎤 " + msg;
+  row.appendChild(el);
+  setTimeout(() => el.remove(), 6000);
+}
+
+async function startRec(i) {
+  if (!navigator.mediaDevices || !window.MediaRecorder) {
+    recError(i, "当前浏览器不支持录音");
+    return;
+  }
+  stopMainAudio();
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mr = new MediaRecorder(stream);
+    const chunks = [];
+    recState = { i: i, mr: mr, chunks: chunks, stream: stream, t0: Date.now(), timer: null };
+    mr.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    mr.onstop = () => {
+      const dur = (Date.now() - recState.t0) / 1000;
+      const blob = new Blob(chunks, { type: mr.mimeType || "audio/webm" });
+      const old = recStore[i];
+      if (old) URL.revokeObjectURL(old.url);
+      recStore[i] = { url: URL.createObjectURL(blob), dur: dur };
+      stream.getTracks().forEach(t => t.stop());
+      recState = null;
+      document.querySelectorAll(".sent-rec").forEach(b => {
+        b.classList.remove("rec"); b.textContent = "🎤";
+      });
+      recBar(i);
+    };
+    mr.start();
+    const btn = document.querySelector(`.sent-rec[data-rec="${i}"]`);
+    if (btn) { btn.classList.add("rec"); btn.textContent = "⏹"; }
+    // 60 秒自动停止
+    recState.timer = setTimeout(() => { if (recState && recState.mr.state === "recording") recState.mr.stop(); }, 60000);
+  } catch (e) {
+    const msg = e && e.name === "NotAllowedError"
+      ? "没有麦克风权限（请在浏览器地址栏允许后重试）"
+      : "无法录音：" + ((e && e.message) || e);
+    recError(i, msg);
+  }
+}
+
+function stopRec() {
+  if (!recState) return;
+  clearTimeout(recState.timer);
+  try { recState.mr.stop(); } catch (e) {}
+}
+
+function toggleRec(i) {
+  if (recState && recState.i === i) { stopRec(); return; }
+  if (recState) { recError(recState.i, "已有录音进行中"); return; }
+  startRec(i);
+}
+
+function playAB(i, mode) {
+  const rec = recStore[i];
+  abAudio.pause();
+  if (mode === "del") {
+    if (rec) URL.revokeObjectURL(rec.url);
+    delete recStore[i];
+    recBar(i);
+    return;
+  }
+  const rate = parseFloat($("speed").value) || 1;
+  if (mode === "mine") {
+    if (!rec) return;
+    abAudio.src = rec.url; abAudio.playbackRate = rate; abAudio.play();
+    return;
+  }
+  abAudio.src = art().sentences[i].audio;
+  abAudio.playbackRate = rate;
+  abAudio.onended = () => {
+    abAudio.onended = null;
+    if (mode === "ab" && recStore[i]) {
+      abAudio.src = recStore[i].url;
+      abAudio.playbackRate = rate;
+      abAudio.play();
+    }
+  };
+  abAudio.play();
+}
+
+// ---- 语块本：划选建块 + 主动回忆 ----
+let chunks = [];
+let chunkDue = 0;
+let chunkQueue = [];
+let chunkCur = null;
+let chunkRevealed = false;
+let chunkSelText = "";
+
+function fmtDate(d) { return String(d || "").slice(0, 10); }
+
+function maskChunk(text) {
+  return String(text).replace(/[A-Za-z][A-Za-z'-]*/g, w =>
+    w.length <= 1 ? w : w[0] + "·".repeat(Math.min(w.length - 1, 6)));
+}
+
+async function chunkLoad() {
+  try {
+    const r = await fetch("/chunks", { cache: "no-store" });
+    if (!r.ok) return;
+    const d = await r.json();
+    chunks = d.items || [];
+    chunkDue = d.due || 0;
+    renderChunkBadge();
+  } catch (e) { /* 静态模式无接口 */ }
+}
+
+function renderChunkBadge() {
+  const el = $("chunk-count");
+  if (el) el.textContent = chunkDue ? ` ${chunkDue}` : "";
+  const t = $("chunk-total");
+  if (t) t.textContent = chunks.length
+    ? `${chunks.length} 个 · 今天待复习 ${chunkDue}` : "还是空的";
+  const st = $("chunk-start");
+  if (st) { st.disabled = !chunkDue; st.textContent = chunkDue ? `开始复习（${chunkDue}）` : "今天没有待复习"; }
+}
+
+function renderChunkList() {
+  const box = $("chunk-body");
+  if (!box) return;
+  if (!chunks.length) {
+    box.innerHTML = '<div class="vn-empty">在正文里划选一段表达 → 点「＋ 语块」即可收藏</div>';
+    return;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  box.innerHTML = chunks.map(c => {
+    const isDue = fmtDate(c.due) <= today;
+    return `<div class="chunk-item">
+      <div class="ce">${esc(c.en)}</div>
+      ${c.zh ? `<div class="cz">${esc(c.zh)}</div>` : ""}
+      <div class="cbox">档位 ${c.box}/5 · ${isDue ? "今天到期" : "下次 " + fmtDate(c.due)}
+        · 记住 ${c.ok || 0}/${c.seen || 0}
+        <button class="vn-btn" data-cdel="${esc(c.id)}" title="删除">🗑</button></div>
+    </div>`;
+  }).join("");
+}
+
+function chunkShowCard() {
+  chunkCur = chunkQueue.shift() || null;
+  chunkRevealed = false;
+  const box = $("chunk-body");
+  if (!chunkCur) {
+    box.innerHTML = '<div class="vn-empty">这一轮复习完了 ✅<br>明天再来，间隔会逐渐拉长</div>';
+    $("chunk-start").textContent = "今天没有待复习";
+    chunkLoad();
+    return;
+  }
+  const prompt = chunkCur.zh
+    ? esc(chunkCur.zh)
+    : `<span class="masked">${esc(maskChunk(chunkCur.en))}</span>`;
+  box.innerHTML = `
+    <div class="chunk-card">
+      <div class="chunk-meta">还剩 ${chunkQueue.length + 1} 个 · 档位 ${chunkCur.box}/5</div>
+      <div class="chunk-prompt">${prompt}</div>
+      <div id="chunk-answer"></div>
+      <div class="chunk-actions" id="chunk-btns">
+        <button id="chunk-reveal" class="primary" style="min-width:96px">揭晓</button>
+      </div>
+    </div>`;
+  $("chunk-reveal").onclick = () => {
+    chunkRevealed = true;
+    $("chunk-answer").innerHTML =
+      `<div class="chunk-en">${esc(chunkCur.en)}</div>` +
+      (chunkCur.src ? `<div class="chunk-src">…${esc(chunkCur.src)}</div>` : "");
+    $("chunk-btns").innerHTML = `
+      <button class="forgot" data-r="forgot">忘了</button>
+      <button data-r="fuzzy">模糊</button>
+      <button class="ok" data-r="ok">记得</button>`;
+  };
+}
+
+async function chunkAnswer(result) {
+  if (!chunkCur) return;
+  try {
+    const r = await postJson("/chunks/review", { id: chunkCur.id, result: result });
+    if (r && r.items) { chunks = r.items; chunkDue = r.due || 0; renderChunkBadge(); }
+  } catch (e) {}
+  chunkShowCard();
+}
+
+function startChunkReview() {
+  const today = new Date().toISOString().slice(0, 10);
+  chunkQueue = chunks.filter(c => fmtDate(c.due) <= today)
+    .sort((a, b) => (a.box || 1) - (b.box || 1));
+  if (!chunkQueue.length) { renderChunkList(); return; }
+  chunkShowCard();
+}
+
+function openChunkAdd(text, src) {
+  chunkSelText = text;
+  $("chunk-en").value = text;
+  $("chunk-zh").value = "";
+  $("chunk-add-note").textContent = src ? "来源：" + src.slice(0, 80) : "";
+  $("chunk-add-note").dataset.src = src || "";
+  $("chunk-add-modal").classList.remove("hidden");
+  setTimeout(() => $("chunk-en").focus(), 50);
+}
+
+async function saveChunk() {
+  const en = $("chunk-en").value.trim();
+  if (!en) { $("chunk-add-note").textContent = "英文块不能为空"; return; }
+  try {
+    const r = await postJson("/chunks/add", {
+      en: en, zh: $("chunk-zh").value.trim(),
+      src: $("chunk-add-note").dataset.src || "",
+      book: art() ? art().id : "",
+    });
+    if (!r.ok) { $("chunk-add-note").textContent = r.error || "保存失败"; return; }
+    chunks = r.items || []; chunkDue = r.due || 0;
+    renderChunkBadge(); renderChunkList();
+    $("chunk-add-modal").classList.add("hidden");
+    hideChunkFab();
+  } catch (e) {
+    $("chunk-add-note").textContent = "保存失败：" + e.message;
+  }
+}
+
+// 划选正文 → 浮动「＋ 语块」
+let chunkFab = null;
+function hideChunkFab() {
+  if (chunkFab) { chunkFab.remove(); chunkFab = null; }
+}
+
+document.addEventListener("mouseup", e => {
+  if (e.target.closest("#chunk-add-modal")) return;
+  setTimeout(() => {
+    const sel = window.getSelection();
+    const text = (sel && sel.toString() || "").replace(/\s+/g, " ").trim();
+    if (!text || text.length < 3) { hideChunkFab(); return; }
+    const row = sel.anchorNode && sel.anchorNode.parentElement
+      ? sel.anchorNode.parentElement.closest(".sent") : null;
+    if (!row) { hideChunkFab(); return; }
+    if (text.length > 120) { hideChunkFab(); return; }
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    hideChunkFab();
+    chunkFab = document.createElement("button");
+    chunkFab.className = "chunk-fab";
+    chunkFab.textContent = "＋ 语块";
+    chunkFab.style.left = (rect.left + rect.width / 2) + "px";
+    chunkFab.style.top = (rect.top + window.scrollY) + "px";
+    chunkFab.onclick = ev => {
+      ev.stopPropagation();
+      const sentence = row.querySelector(".txt") ? row.querySelector(".txt").textContent : "";
+      openChunkAdd(text, sentence.trim());
+    };
+    document.body.appendChild(chunkFab);
+  }, 10);
+});
+
+document.addEventListener("mousedown", e => {
+  if (chunkFab && e.target !== chunkFab) hideChunkFab();
+});
+
 // ---- 资料库规模（期数 / 篇数 / 句数）----
 const fmtNum = n => Number(n || 0).toLocaleString("en-US");
 const fmtWan = n => (n >= 10000 ? (n / 10000).toFixed(0) + " 万" : fmtNum(n));
@@ -1753,6 +2125,35 @@ applyTheme(currentTheme());
 $("theme-btn").addEventListener("click", () => {
   applyTheme(currentTheme() === "dark" ? "light" : "dark");
 });
+
+// ---- 语块本事件 ----
+$("chunk-open").addEventListener("click", () => {
+  $("chunk-modal").classList.remove("hidden");
+  renderChunkList();
+  renderChunkBadge();
+});
+$("chunk-close").addEventListener("click", () => $("chunk-modal").classList.add("hidden"));
+$("chunk-modal").addEventListener("click", e => {
+  if (e.target.id === "chunk-modal") $("chunk-modal").classList.add("hidden");
+});
+$("chunk-start").addEventListener("click", startChunkReview);
+$("chunk-body").addEventListener("click", e => {
+  const del = e.target.closest("[data-cdel]");
+  if (del) {
+    postJson("/chunks/remove", { id: del.dataset.cdel }).then(r => {
+      if (r && r.items) { chunks = r.items; chunkDue = r.due || 0; renderChunkBadge(); renderChunkList(); }
+    });
+    return;
+  }
+  const rb = e.target.closest("[data-r]");
+  if (rb) chunkAnswer(rb.dataset.r);
+});
+$("chunk-add-close").addEventListener("click", () => $("chunk-add-modal").classList.add("hidden"));
+$("chunk-add-modal").addEventListener("click", e => {
+  if (e.target.id === "chunk-add-modal") $("chunk-add-modal").classList.add("hidden");
+});
+$("chunk-save").addEventListener("click", saveChunk);
+$("chunk-zh").addEventListener("keydown", e => { if (e.key === "Enter") saveChunk(); });
 
 // ---- 导出讲义事件 ----
 $("exp-open").addEventListener("click", () => {
@@ -1867,7 +2268,7 @@ renderArticle();
 setActive(0);
 initIssues();
 pollStatus();
-Promise.all([vnLoad(), pgLoad(), posLoad()]).then(() => {
+Promise.all([vnLoad(), pgLoad(), posLoad(), chunkLoad()]).then(() => {
   renderVocabBook();
   renderPlaylist();
   updateMarkBtn();
