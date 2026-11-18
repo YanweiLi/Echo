@@ -40,6 +40,21 @@ OPF_NS = {"opf": "http://www.idpf.org/2007/opf", "dc": "http://purl.org/dc/eleme
 
 JUNK_CHARS = "■▪•▸▹"
 
+# 老格式（calibre 抓网页）文末常见的推销 / 水印段
+JUNK_PARAGRAPHS = (
+    "For subscribers only",
+    "This article was downloaded by",
+    "For more expert analysis",
+    "Stay on top of",
+    "To stay on top of",
+    "Read more from",
+    "Also:",
+)
+
+# 老格式的日期形如 “Jan 5th 2023”（也可能写成 January 5th 2023）
+DATE_RE = re.compile(r"^(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*"
+                     r" \d{1,2}(?:st|nd|rd|th)? \d{4}$")
+
 
 def clean(s: str) -> str:
     s = s or ""
@@ -105,8 +120,8 @@ class DocParser(HTMLParser):
             return          # 元数据段（栏目行）
         if "link_navbar" in self._p_class:
             return          # zlibrary 水印/原链接
-        if txt.startswith("For subscribers only"):
-            return          # 推销段
+        if txt.startswith(JUNK_PARAGRAPHS):
+            return          # 推销段 / 水印 / 专栏导流
         self.paragraphs.append(strip_ligatures(txt))
 
     def handle_starttag(self, tag, attrs):
@@ -192,6 +207,7 @@ class Epub:
         if self.opf_dir == ".":
             self.opf_dir = ""
         self.manifest, self.spine_ids, self.meta = self._parse_opf()
+        self._section_cache = {}
 
     def _read(self, name) -> str:
         return self.z.read(name).decode("utf-8", "ignore")
@@ -222,6 +238,30 @@ class Epub:
         }
         return manifest, spine_ids, meta
 
+    def section_for(self, href: str) -> str:
+        """老格式：栏目名在 feed_N/index_*.html 的 <title> 里（如 Business）。
+
+        新格式没有这样的索引页，返回空串。
+        """
+        parts = PurePosixPath(href).parts
+        if len(parts) < 3:
+            return ""
+        feed = parts[0]
+        if feed in self._section_cache:
+            return self._section_cache[feed]
+        feed_dir = f"{self.opf_dir}/{feed}" if self.opf_dir else feed
+        name = ""
+        for n in self.z.namelist():
+            pp = PurePosixPath(n)
+            # 只认栏目自己的索引页（feed_13/index_*.html），不能命中文章页
+            if str(pp.parent) == feed_dir and pp.name.startswith("index"):
+                m = re.search(r"<title>(.*?)</title>", self._read(n), re.S)
+                if m:
+                    name = clean(html.unescape(m.group(1)))
+                    break
+        self._section_cache[feed] = name
+        return name
+
     def documents(self):
         """按 spine 顺序产出 (href, 绝对 zip 路径, DocParser)。"""
         for sid in self.spine_ids:
@@ -245,18 +285,29 @@ class Epub:
 
 def is_skippable(href: str) -> bool:
     low = href.lower()
+    if "/article_" in low:
+        return False        # 老格式文章页：feed_13/article_4/index_u2.html
     return any(pat in low for pat in SKIP_PATTERNS)
 
 
 def pick_fields(doc: DocParser):
     """返回 (title, section, fly, standfirst, date)。"""
     m = doc.meta
-    title = m.get("te_article_title") or doc.title
-    section = m.get("te_section_title", "")
-    fly = m.get("te_fly_span", "").lstrip("|").strip()
-    standfirst = m.get("te_article_rubric", "")
-    date = m.get("te_article_datepublished", "")
-    return title, section, fly, standfirst, date
+    if m.get("te_article_title"):
+        return (m["te_article_title"], m.get("te_section_title", ""),
+                m.get("te_fly_span", "").lstrip("|").strip(),
+                m.get("te_article_rubric", ""), m.get("te_article_datepublished", ""))
+
+    # 老格式（calibre 抓网页）：<h4>=fly  <h1>=标题  <h3>=导语/日期
+    by_tag = {}
+    for tag, _cls, txt in doc.headings:
+        by_tag.setdefault(tag, []).append(txt)
+    title = (by_tag.get("h1") or [doc.title])[0]
+    fly = (by_tag.get("h4") or [""])[0]
+    h3s = by_tag.get("h3") or []
+    date = next((t for t in h3s if DATE_RE.match(t)), "")
+    standfirst = next((t for t in h3s if t != date), "")
+    return title, "", fly, standfirst, date
 
 
 def chapter_paragraphs(doc: DocParser):
@@ -504,6 +555,8 @@ def analyze(epub_path: Path, tiers=None):
     articles, report = [], []
     for idx, (href, full, doc) in enumerate(ep.documents(), 1):
         title, section, fly, standfirst, date = pick_fields(doc)
+        if not section:
+            section = ep.section_for(href)
         paras = chapter_paragraphs(doc)
         chars = sum(len(p) for p in paras)
         skip = is_skippable(href) or not paras or chars < 400

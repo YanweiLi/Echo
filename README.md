@@ -20,12 +20,14 @@ Echo/
 ├── tools/                      ← 🛠 转换与校验工具
 │   ├── epub2md.py                  EPUB → 中间 md（含整期可打印 HTML）
 │   ├── verify_md.py                md ↔ EPUB 逐句回查校验
+│   ├── backup_library.py           打包 dist/md 到 ~/Echo-backup
 │   ├── build_wordbank.py           从 ECDICT 构建四六级词库
 │   ├── extract_dict.py             从历史脚本抽取内置词典（校订层）
 │   └── make_icon.swift             应用图标生成器
 ├── launch.command              ← ⭐ 双击启动（网页版）
 ├── build-app.command           ← ⭐ 编译 macOS App
 ├── choose-folder.command       ← 更换搜索路径
+├── backup-library.command      ← 备份资料库（双击）
 ├── requirements.txt
 ├── Echo.app                    ← 🖥 编译出的 App（不入库）
 ├── dist/                       ← 🎵 产物（不入库）
@@ -130,14 +132,23 @@ EPUB ──[tools/epub2md.py]──> dist/md/<期号>/*.md ──┬──> Echo
 
 ### 解析规则（要点）
 
-- **栏目**取自 `<span class="te_section_title">`，**标题**取自 `<h1 class="te_article_title">`，
+支持两种 EPUB 排版，自动识别：
+
+| 格式 | 特征 | 识别方式 |
+| --- | --- | --- |
+| **新版**（官方/2024-04 之后） | `te_article_title` / `te_section_title` 等类名 | 有 `te_*` 元数据 |
+| **旧版**（calibre 抓网页 / 2024-04 之前） | `feed_13/article_4/index_u2.html`，`calibre7/8/9` 类名 | 无 `te_*` 时回退 |
+
+- 新版：**栏目**取自 `<span class="te_section_title">`，**标题**取自 `<h1 class="te_article_title">`，
   副标题取 `te_article_rubric`，日期取 `te_article_datePublished`
+- 旧版：`<h4>`=小标题、`<h1>`=标题、`<h3>`=导语/日期，**栏目**取同级 `feed_N/index_*.html` 的 `<title>`
+- 路径判定：`feed_N/article_M/index_uNN.html` 属于文章页（不能因为含 `index` 就被当成目录页跳过）
 - 自动剔除：封面 / 目录 / 广告页 / 纯图片页 / 「This article was downloaded by …」水印段 /
-  「For subscribers only …」推销段 / 文末 ■ 装饰符
+  「For subscribers only …」「Read more from …」「Stay on top of …」推销段 / 文末 ■ 装饰符
 - 命名 `<NNN>_<栏目>_-_<标题>.md` —— 刻意匹配 Echo 的侧栏标签规则，**播放器零改动**
 - 断句直接复用 `player.py` 的 `split_sentences()`（含缩写表），与老数据保持一致
 
-实测（77 期 / 5682 篇）：**逐句回查 0 丢句**，正文覆盖率 ~97%
+实测（252 期 / 18445 篇，2022.01 – 2026.11）：**逐句回查 0 丢句**，正文覆盖率 ~97%
 （差额正是被剔除的水印 / 推销 / 元数据段），连字残留与断词粘连均为 0。
 
 ### md 格式契约（Echo 依赖，勿改）
@@ -377,6 +388,22 @@ python src/player.py --dir "/Volumes/EAGET忆捷/英语学习/Economist/2026" --
 - 数据目录的「指针」存在固定位置 `~/Library/Application Support/Echo/settings.json`，
   所以即使把数据目录改到移动硬盘，Echo 下次仍能找到。
 - 设置页只在**服务模式**（`launch.command` / `Echo.app`）下可用；静态打开的 html 会自动隐藏该按钮。
+
+### 备份资料库 💾
+
+`dist/` 不进版本库，误删就只能从 EPUB 重转（254 期约需 1 小时）。建议定期打包：
+
+```bash
+.venv/bin/python tools/backup_library.py            # → ~/Echo-backup/echo-md-<时间>.zip
+.venv/bin/python tools/backup_library.py --keep 12  # 保留最近 12 份
+.venv/bin/python tools/backup_library.py --dest /Volumes/xxx/Echo-backup
+```
+
+或直接双击根目录的 **backup-library.command**（可用 `BACKUP_DIR=` 指定位置）。
+
+- 252 期 / 18445 篇 → 压缩后约 **103 MB**，耗时约 6 秒
+- 恢复：`unzip ~/Echo-backup/echo-md-<时间>.zip -d dist/md`
+- 默认保留最近 8 份，旧的自动删除
 
 ## 产物目录（dist/）
 
