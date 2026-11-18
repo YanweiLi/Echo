@@ -1691,9 +1691,18 @@ def run_serve(args):
         cur_issue = lib.issues[0]["id"]
         print(f"🗂️  索引 {len(lib.issues)} 期 / {len(lib.flat)} 篇（正文与音频按需解析）")
         arts = lib.ensure_issue(cur_issue)
+        total_sent = sum(len(a["sentences"]) for a in arts)
+        if not total_sent:
+            sys.exit(
+                f"❌ 目录里没有可朗读的英文正文：{root}\n"
+                f"   扫描到 {len(arts)} 个 md，但都不含 <div class=\"original\"> 原文段。\n"
+                f"   常见原因：搜索路径指向了 EPUB/PDF 资料库（那里只有 README.md），"
+                f"而不是转换后的 md 目录。\n"
+                f"   正确做法：--dir \"<项目>/dist/md\"，或用 --save-path 记录该目录。"
+            )
         ready0 = sum(1 for a in arts for s in a["sentences"] if TtsEngine.is_ready(s["path"]))
         print(f"📖 当前期「{cur_issue or root.name}」：{len(arts)} 篇、"
-              f"{sum(len(a['sentences']) for a in arts)} 句（已有 {ready0} 句音频）")
+              f"{total_sent} 句（已有 {ready0} 句音频）")
     else:
         md = Path(args.md).expanduser()
         if not md.exists():
