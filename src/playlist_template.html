@@ -121,21 +121,27 @@
   .pl-label { font-size: 14px; flex: 1; }
   .pl-n { color: var(--muted); font-size: 12px; }
 
-  /* 焦点句 */
-  .focus { flex: none; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px 24px; box-shadow: 0 2px 10px rgba(28,27,24,.04); }
-  .focus-label { color: var(--accent); font-size: 12px; letter-spacing: .06em; margin-bottom: 8px; }
-  .focus-text { font-family: var(--serif); font-size: 30px; line-height: 1.55; }
-  .focus-meta { margin-top: 10px; color: var(--muted); font-size: 13px; }
-  .sent.active .txt { font-weight: 600; }
+  /* 句子面板标题栏（译 / 析 / 标记完成） */
+  .sents-bar { display: flex; align-items: center; gap: 8px; }
+  .sents-bar .bar-title {
+    flex: 1; min-width: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .sents-bar .mark-btn { flex: none; }
 
-  .sents { max-height: max(240px, calc(100vh - 520px)); overflow-y: auto; }
-  .sent { display: flex; flex-wrap: wrap; gap: 12px; padding: 11px 16px; cursor: pointer; border-bottom: 1px solid var(--line); transition: background .15s; }
+  .sents { max-height: max(240px, calc(100vh - 380px)); overflow-y: auto; }
+  .sent { display: flex; flex-wrap: wrap; gap: 12px; padding: 11px 16px; cursor: pointer;
+          border-bottom: 1px solid var(--line); transition: background .15s, padding .15s; }
   .sent:last-child { border-bottom: none; }
   .sent:hover { background: #fbfaf7; }
-  .sent .idx { color: var(--muted); font-size: 12px; min-width: 26px; text-align: right; padding-top: 3px; font-variant-numeric: tabular-nums; }
-  .sent .txt { font-family: var(--serif); font-size: 15.5px; flex: 1; min-width: 0; }
-  .sent.active { background: var(--accent-soft); }
-  .sent.active .idx { color: var(--accent); font-weight: 700; }
+  .sent .idx { color: var(--muted); font-size: 12px; min-width: 26px; text-align: right;
+               padding-top: 3px; font-variant-numeric: tabular-nums; transition: .15s; }
+  .sent .txt { font-family: var(--serif); font-size: 15.5px; flex: 1; min-width: 0;
+               transition: font-size .15s, line-height .15s; }
+  .sent.active { background: var(--accent-soft); padding: 18px 16px; }
+  .sent.active .txt { font-size: 21px; line-height: 1.5; font-weight: 600; }
+  .sent.active .idx { color: var(--accent); font-weight: 700; font-size: 13px; padding-top: 7px; }
+  .sent.active .zh-btn { opacity: .9; }
   .sent.notready .txt { opacity: .38; }
   .sent.notready .idx { color: #d9d2c5; }
 
@@ -154,12 +160,6 @@
     font-size: 14.5px; line-height: 1.75; color: #5d574c;
   }
   .zh.err { color: var(--muted); font-size: 13px; }
-  .focus-zh {
-    margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line);
-    font-size: 18px; line-height: 1.75; color: #5d574c;
-  }
-  .focus-zh.hidden { display: none; }
-  .focus-zh.err { color: var(--muted); font-size: 14px; }
 
   /* ---- AI 拆解抽屉（右侧，不遮住原文）---- */
   .ai-drawer {
@@ -274,8 +274,6 @@
   /* ---- 学习进度（标记完成）---- */
   .pl-item.done .pl-label { color: var(--muted); }
   .pl-item.done .pl-idx { color: #2e7d32; font-weight: 700; }
-  .focus-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-  .focus-top .focus-label { margin-bottom: 0; flex: 1; }
   .mark-btn {
     border: 1px solid var(--line); background: var(--card); color: var(--muted);
     border-radius: 10px; padding: 5px 12px; font-size: 13px; cursor: pointer; font-family: inherit;
@@ -348,19 +346,13 @@
   </aside>
 
   <main>
-    <div class="focus">
-      <div class="focus-top">
-        <div class="focus-label" id="focus-label"></div>
-        <button id="zh-toggle" class="zh-btn" title="显示本句中文翻译（快捷键 T）">译</button>
-        <button id="ai-open" class="zh-btn" title="AI 拆解这句（快捷键 E）">析</button>
+    <div class="panel">
+      <div class="panel-head sents-bar">
+        <span class="bar-title" id="sents-head"></span>
+        <button id="zh-toggle" class="zh-btn" title="显示当前句中文翻译（快捷键 T）">译</button>
+        <button id="ai-open" class="zh-btn" title="AI 拆解当前句（快捷键 E）">析</button>
         <button id="mark-done" class="mark-btn" title="标记本篇学习完成">✓ 标记完成</button>
       </div>
-      <div class="focus-text" id="focus-text"></div>
-      <div class="focus-zh hidden" id="focus-zh"></div>
-      <div class="focus-meta" id="focus-meta"></div>
-    </div>
-    <div class="panel">
-      <div class="panel-head" id="sents-head"></div>
       <div class="sents" id="sents"></div>
     </div>
   </main>
@@ -624,25 +616,26 @@ async function toggleSentenceZh(btn, text) {
   const r = await fetchZhSentence(text);
   box.textContent = r.ok ? r.zh : "（" + (r.error || "翻译失败") + "）";
   if (!r.ok) box.classList.add("err");
+  syncZhToggle();
 }
 
-// 焦点句（正在朗读）的译文
-let focusZhOn = false;
-async function toggleFocusZh(text) {
-  const box = $("focus-zh"), btn = $("zh-toggle");
-  if (focusZhOn) {
-    focusZhOn = false;
-    box.classList.add("hidden");
-    btn.classList.remove("on");
-    return;
-  }
-  focusZhOn = true;
-  btn.classList.add("on");
-  box.className = "focus-zh";
-  box.textContent = "翻译中…";
-  const r = await fetchZhSentence(text);
-  box.textContent = r.ok ? r.zh : "（" + (r.error || "翻译失败") + "）";
-  if (!r.ok) box.classList.add("focus-zh", "err");
+// 当前句的译文：直接展开在被放大的那一句下面（与点该行「译」等价）
+function activeZhBtn() {
+  const row = document.querySelector(`#sents .sent[data-i="${idx}"]`);
+  return row ? row.querySelector(".zh-btn[data-zh]") : null;
+}
+
+function syncZhToggle() {
+  const btn = activeZhBtn();
+  const row = btn && btn.closest(".sent");
+  $("zh-toggle").classList.toggle("on", !!(row && row.querySelector(".zh")));
+}
+
+async function toggleFocusZh() {
+  const btn = activeZhBtn();
+  if (!btn) return;
+  await toggleSentenceZh(btn, art().sentences[idx].text);
+  syncZhToggle();
 }
 
 // ---- AI 句子拆解（点击才请求；结果在服务端永久缓存）----
@@ -1215,7 +1208,6 @@ function renderArticle() {
        <div class="vw-ex">${esc(v.example)}</div>
      </div>`).join("");
   document.querySelectorAll(".pl-item").forEach((el, k) => el.classList.toggle("active", k === a));
-  $("focus-label").textContent = `${art().label} · 正在朗读 · 点击可重播`;
   $("sents-head").textContent = `${art().label} · 逐句 · 点击跳转`;
   updateMarkBtn();
   if (lastStatus) applyStatus(lastStatus);
@@ -1229,9 +1221,6 @@ function globalIndex() {
 
 function setActive(i) {
   idx = i;
-  focusZhOn = false;                     // 换句后收起上一句的译文
-  $("focus-zh").className = "focus-zh hidden";
-  $("zh-toggle").classList.remove("on");
   if (aiOpenIndex !== null && aiOpenIndex !== i) {
     // 抽屉开着但换了句：不自动拆解（避免消耗额度），只给一个按钮
     aiOpenIndex = null;
@@ -1244,16 +1233,10 @@ function setActive(i) {
   }
   document.querySelectorAll(".sent").forEach((el, k) => el.classList.toggle("active", k === i));
   const cur = document.querySelector(".sent.active");
-  if (cur) cur.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  $("focus-text").innerHTML = wrapWords(art().sentences[i].text);
-  $("focus-meta").textContent = `第 ${i + 1} / ${art().sentences.length} 句`;
+  if (cur) cur.scrollIntoView({ block: "center", behavior: "smooth" });
+  syncZhToggle();
   $("counter").textContent = `文章 ${a + 1}/${ARTICLES.length} · 句 ${i + 1}/${art().sentences.length}`;
   $("progress").style.width = `${((globalIndex() + 1) / totalSentences) * 100}%`;
-  $("focus-text").onclick = e => {
-    const w = e.target.closest(".w");
-    if (w) lookupWord(w.dataset.w, w);
-    else play(i);
-  };
 }
 
 function play(i) {
@@ -1366,7 +1349,7 @@ document.addEventListener("keydown", e => {
   if (e.code === "Space") { e.preventDefault(); togglePlay(); }
   else if (e.key === "ArrowLeft") prevSentence();
   else if (e.key === "ArrowRight") nextSentence();
-  else if (e.key === "t" || e.key === "T") toggleFocusZh(art().sentences[idx].text);
+  else if (e.key === "t" || e.key === "T") toggleFocusZh();
   else if (e.key === "e" || e.key === "E") openAiDrawer(idx);
   else if (e.key === "Escape") {
     $("lookup").classList.add("hidden");
@@ -1401,8 +1384,17 @@ $("lookup-save").addEventListener("click", () => {
 });
 
 // ---- 句中译事件 ----
-$("zh-toggle").addEventListener("click", () =>
-  toggleFocusZh(art().sentences[idx].text));
+$("zh-toggle").addEventListener("click", toggleFocusZh);
+
+// 窗口尺寸变化后把当前句重新滚回可见区域（避免放大后飘出视野）
+let recenterTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(recenterTimer);
+  recenterTimer = setTimeout(() => {
+    const cur = document.querySelector(".sent.active");
+    if (cur) cur.scrollIntoView({ block: "nearest", behavior: "auto" });
+  }, 180);
+});
 
 // ---- 量出底部播放条高度：让查词卡片 / AI 抽屉避开它 ----
 (function syncDockHeight() {
