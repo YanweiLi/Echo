@@ -137,6 +137,17 @@
           border-bottom: 1px solid var(--line); transition: background .15s, padding .15s; }
   .sent:last-child { border-bottom: none; }
   .sent:hover { background: #fbfaf7; }
+  .sent-play {
+    flex: none; align-self: flex-start; margin-top: 1px;
+    width: 22px; height: 22px; padding: 0; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 9px; line-height: 1; color: var(--muted);
+    opacity: .4; transition: .15s;
+  }
+  .sent:hover .sent-play, .sent.active .sent-play { opacity: .9; }
+  .sent-play:hover { border-color: var(--accent); color: var(--accent); }
+  .sent-play.on { opacity: 1; background: var(--accent); color: #fff; border-color: var(--accent); }
+  .sent.active .sent-play { margin-top: 3px; }
   .sent .idx { color: var(--muted); font-size: 12px; min-width: 26px; text-align: right;
                padding-top: 3px; font-variant-numeric: tabular-nums; transition: .15s; }
   .sent .txt { font-family: var(--serif); font-size: 15.5px; flex: 1; min-width: 0;
@@ -503,6 +514,7 @@ function indexArticles() {
 indexArticles();
 
 let a = 0, idx = 0, playing = false, repeatMode = false, autoMode = true;
+let soloMode = false;      // true = 只播当前这一句，播完不往后走
 let loopMode = "list";  // off=不循环 / track=单篇循环 / list=列表循环
 const audio = new Audio();
 audio.preload = "auto";
@@ -1286,7 +1298,7 @@ function renderPlaylist() {
 
 function renderArticle() {
   $("sents").innerHTML = art().sentences.map((s, i) =>
-    `<div class="sent" data-i="${i}"><span class="idx">${i + 1}</span><span class="txt">${wrapWords(s.text)}</span><button class="zh-btn" data-zh="${i}" title="显示中文翻译">译</button><button class="zh-btn ai-btn" data-ai="${i}" title="AI 拆解这句">析</button></div>`).join("");
+    `<div class="sent" data-i="${i}"><button class="sent-play" data-play="${i}" title="只播放这一句（再点暂停）">▶</button><span class="idx">${i + 1}</span><span class="txt">${wrapWords(s.text)}</span><button class="zh-btn" data-zh="${i}" title="显示中文翻译">译</button><button class="zh-btn ai-btn" data-ai="${i}" title="AI 拆解这句">析</button></div>`).join("");
   $("vocab").innerHTML = (art().vocab || []).map(v =>
     `<div class="vocab-item" data-w="${esc(v.word)}">
        <div class="vw-line"><span class="vw-word">${esc(v.word)}</span><span class="vw-ipa">${esc(v.phonetic)}</span>${tierBadge(v.tier)}<span class="speaker">🔊</span></div>
@@ -1328,6 +1340,7 @@ function setActive(i) {
 
 function play(i) {
   if (i !== undefined) idx = i;
+  soloMode = false;                      // 常规播放：播完按连播/循环设置继续
   audio.src = art().sentences[idx].audio;
   audio.playbackRate = parseFloat($("speed").value);
   audio.play().then(() => { playing = true; renderPlay(); }).catch(() => {});
@@ -1394,9 +1407,38 @@ function prevSentence() {
 
 function pause() { audio.pause(); playing = false; renderPlay(); }
 function togglePlay() { playing ? pause() : play(idx); }
-function renderPlay() { $("play").textContent = playing ? "⏸" : "▶"; }
+function renderPlay() {
+  $("play").textContent = playing ? "⏸" : "▶";
+  document.querySelectorAll(".sent-play").forEach(b => {
+    const on = playing && Number(b.dataset.play) === idx;
+    if (b.classList.contains("on") !== on) b.classList.toggle("on", on);
+    const label = on ? "⏸" : "▶";
+    if (b.textContent !== label) b.textContent = label;
+  });
+}
+
+// 行内播放/暂停：点一下只播这一句，再点暂停，第三次从暂停处继续
+function playSolo(i) {
+  idx = i;
+  soloMode = true;
+  audio.src = art().sentences[i].audio;
+  audio.playbackRate = parseFloat($("speed").value);
+  audio.play().then(() => { playing = true; renderPlay(); }).catch(() => {});
+  setActive(i);
+}
+
+function toggleRowPlay(i) {
+  if (i === idx && playing) { pause(); return; }                  // 正在播这句 → 暂停
+  if (i === idx && audio.src) {                                   // 暂停过 → 原地继续
+    soloMode = true;
+    audio.play().then(() => { playing = true; renderPlay(); }).catch(() => {});
+    return;
+  }
+  playSolo(i);
+}
 
 audio.addEventListener("ended", () => {
+  if (soloMode && !repeatMode) { playing = false; renderPlay(); return; }  // 只播这一句
   if (repeatMode) { audio.currentTime = 0; audio.play(); return; }   // 单句循环
   if (!autoMode) { playing = false; renderPlay(); return; }          // 未开连播
   if (!lastSentence()) { play(idx + 1); return; }                    // 本篇下一句
@@ -1415,6 +1457,8 @@ $("pl-list").addEventListener("click", e => {
 });
 
 $("sents").addEventListener("click", e => {
+  const pb = e.target.closest(".sent-play");
+  if (pb) { toggleRowPlay(parseInt(pb.dataset.play, 10)); return; }
   const ab = e.target.closest(".ai-btn");
   if (ab) { openAiDrawer(parseInt(ab.dataset.ai, 10)); return; }
   const zb = e.target.closest(".zh-btn[data-zh]");
