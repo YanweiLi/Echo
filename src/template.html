@@ -31,6 +31,10 @@
     --t4-bg: #e8f0fe; --t4-fg: #1a56c4;
     --t6-bg: #fdf0e2; --t6-fg: #b4640a;
     --t0-bg: #f3ecf8; --t0-fg: #7a3fa8;
+    --sent-size: 15.5px;                                /* 普通句 */
+    --sent-active-size: 28px;                           /* 当前句（普通句 15.5px 的 1.8 倍）*/
+    --zh-size: 14.5px;                                  /* 普通句的译文 */
+    --zh-active-size: 19px;                             /* 当前句的译文 */
     --serif: Georgia, "Times New Roman", "Songti SC", serif;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     color-scheme: light;
@@ -187,10 +191,10 @@
   .sent.active .sent-play { margin-top: 3px; }
   .sent .idx { color: var(--muted); font-size: 12px; min-width: 26px; text-align: right;
                padding-top: 3px; font-variant-numeric: tabular-nums; transition: .15s; }
-  .sent .txt { font-family: var(--serif); font-size: 15.5px; flex: 1; min-width: 0;
+  .sent .txt { font-family: var(--serif); font-size: var(--sent-size); flex: 1; min-width: 0;
                transition: font-size .15s, line-height .15s; }
-  .sent.active { background: var(--accent-soft); padding: 18px 16px; }
-  .sent.active .txt { font-size: 21px; line-height: 1.5; font-weight: 600; }
+  .sent.active { background: var(--accent-soft); padding: 20px 16px; }
+  .sent.active .txt { font-size: var(--sent-active-size); line-height: 1.45; font-weight: 600; }
   .sent.active .idx { color: var(--accent); font-weight: 700; font-size: 13px; padding-top: 7px; }
   .sent.active .zh-btn { opacity: .9; }
   .sent.notready .txt { opacity: .38; }
@@ -208,9 +212,10 @@
   .zh {
     flex-basis: 100%; margin: 6px 0 0 38px; padding-left: 10px;
     border-left: 2px solid var(--accent-soft);
-    font-size: 14.5px; line-height: 1.75; color: var(--zh-ink);
+    font-size: var(--zh-size); line-height: 1.75; color: var(--zh-ink);
   }
   .zh.err { color: var(--muted); font-size: 13px; }
+  .sent.active .zh { font-size: var(--zh-active-size); }
 
   /* ---- AI 拆解抽屉（右侧，不遮住原文）---- */
   .ai-drawer {
